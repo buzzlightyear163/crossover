@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en" data-theme="lime">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CROSSOVER — buys when it hits the apps</title>
+<meta name="description" content="Reads which buys come from pro terminals and which come from consumer apps, and buys the moment a coin crosses over to the apps.">
+<meta name="theme-color" content="#0d0e0b">
+<meta property="og:title" content="CROSSOVER — buys when it hits the apps"><meta property="og:description" content="Every buy leaves a fingerprint: a pro terminal or a consumer app. CROSSOVER reads them live and buys the moment a coin crosses over to the apps.">
+<meta property="og:type" content="website"><meta property="og:image" content="/og.png">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="/og.png">
+<link rel="icon" href="/fav.png"><link rel="apple-touch-icon" href="/fav.png">
+<link rel="preload" href="/fonts/geist-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="site.css">
+<style>
+/* ===== session layout: the page is one terminal session. sticky command rail left, output right. ===== */
+:root{--w:1200px}
+body::before{opacity:.22}
+.top{background:color-mix(in srgb,var(--bg) 82%,transparent)} .top .wrap{height:64px}
+.top .live{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);margin-left:auto}
+.nav{margin:0 0 0 40px}
+.dot{width:7px;height:7px;background:var(--faint);display:inline-block;flex:none}
+.dot.on{background:var(--accent);box-shadow:var(--glow);animation:blink 1.6s steps(1) infinite} .dot.red{background:var(--red)} .dot.term{background:var(--term)} .dot.acc{background:var(--accent)}
+.k{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.hint{font-size:12px;color:var(--muted);min-height:1.6em;margin-top:10px} .hint.err{color:var(--red)}
+.tm{color:var(--term)} .faint{color:var(--faint)}
+/* hero */
+.hero2{position:relative;min-height:calc(100svh - 64px);display:flex;align-items:center;overflow:hidden;padding:40px 0 90px}
+.hero2 canvas.bg{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.hero2 .wrap{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:40px;align-items:center;width:100%}
+.hero2 h1{font-size:clamp(42px,5.6vw,80px);font-weight:400;letter-spacing:-.055em;line-height:.94;margin:28px 0 26px}
+.hero2 h1 b{font-weight:700;color:var(--accent)}
+.hero2 .lede{color:var(--muted);font-size:16px;max-width:44ch;line-height:1.65}
+.hero2 .lede b{color:var(--ink);font-weight:500}
+.inbar{display:flex;border:1.5px solid var(--line);background:var(--paper);height:58px;max-width:580px;box-shadow:6px 6px 0 var(--shadow);transition:border-color .15s}
+.inbar:focus-within{border-color:var(--accent)}
+.inbar input{flex:1;background:none;border:0;padding:0 18px;font:14px var(--mono);color:var(--ink);outline:none;min-width:0}
+.inbar input::placeholder{color:var(--faint)}
+.inbar button{border:0;background:var(--accent);color:var(--bg);font:600 13.5px var(--mono);padding:0 24px;cursor:pointer;display:flex;align-items:center;gap:10px;box-shadow:var(--glow)}
+.inbar button:disabled{opacity:.6;cursor:wait}
+.hero2 .inbar{margin-top:36px}
+.try{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin-top:16px;font-size:12px;color:var(--muted);min-height:26px}
+.try .chip{border:1px solid var(--hair);color:var(--ink)} .try .chip small{color:var(--muted);margin-left:.45em} .try .chip small.acc{color:var(--accent)}
+.liveline{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted);margin-top:30px;padding-top:18px;border-top:1px solid var(--hair);max-width:580px}
+.liveline b{color:var(--ink);font-weight:500}
+.statusrow{position:absolute;left:0;right:0;bottom:26px;z-index:1}
+.statusrow .wrap{display:flex !important;gap:28px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.statusrow span{display:inline-flex;align-items:center;gap:8px}
+.statusrow .ca{margin:0 0 0 auto;font-size:11px;letter-spacing:.04em;text-transform:none}
+/* sessions */
+.sess{position:relative;z-index:1;border-top:1px solid var(--hair)}
+.sess>.wrap{display:grid;grid-template-columns:300px minmax(0,1fr);gap:72px;padding-top:120px;padding-bottom:120px}
+.rail{position:sticky;top:110px;align-self:start}
+.rail .n{font-size:11px;letter-spacing:.16em;color:var(--faint);margin-bottom:14px}
+.rail .cmd{font-size:13px;color:var(--muted);white-space:nowrap} .rail .cmd b{color:var(--ink);font-weight:500}
+.rail h2{font-size:clamp(28px,3vw,38px);font-weight:500;letter-spacing:-.035em;line-height:1.08;margin:16px 0}
+.rail p{color:var(--muted);font-size:14px;line-height:1.7}
+.rail .ctl{margin-top:26px;padding-top:20px;border-top:1px solid var(--hair);display:flex;flex-direction:column;gap:14px}
+.toggles{display:flex;flex-wrap:wrap;gap:6px} .toggles .chip{border:1px solid var(--hair)}
+.out{min-width:0}
+/* story */
+.story{height:340vh}
+.story>.wrap{position:sticky;top:64px;height:calc(100svh - 64px);padding-top:0;padding-bottom:0;align-items:center}
+.story .rail{position:static}
+.beats{margin-top:26px;display:flex;flex-direction:column;gap:2px}
+.beats li{list-style:none;display:grid;grid-template-columns:2.2em 1fr;padding:10px 0;color:var(--faint);font-size:13.5px;line-height:1.55;transition:color .25s}
+.beats li b{font-weight:500} .beats li.done{color:var(--muted)} .beats li.on{color:var(--ink)} .beats li.on b{color:var(--accent);text-shadow:var(--glow)}
+.storybox{border:1px solid var(--hair);background:color-mix(in srgb,var(--paper) 55%,transparent);padding:18px 20px 16px}
+.storybox .hd{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:14px} .storybox .hd b{color:var(--ink);font-weight:500}
+#storyCv{display:block;width:100%;image-rendering:pixelated}
+/* reader */
+.result{margin-top:30px}
+.result .empty{padding:44px 0;color:var(--faint);font-size:13px;line-height:1.9;border-top:1px solid var(--hair)}
+.verdict{display:flex;align-items:flex-end;gap:28px;padding:26px 0 24px;border-top:1px solid var(--hair);flex-wrap:wrap}
+.verdict .big{font-size:clamp(56px,7vw,92px);font-weight:600;letter-spacing:-.06em;line-height:.86}
+.verdict .vt{font-size:15px;line-height:1.6;padding-bottom:6px} .verdict .vt span{color:var(--muted)}
+.verdict .act{margin-left:auto;display:flex;gap:10px;padding-bottom:6px}
+.splitbar{display:flex;height:30px;border:1.5px solid var(--line);margin:4px 0 10px}
+.splitbar div{min-width:0;border-right:1.5px solid var(--line);background:repeating-linear-gradient(90deg,var(--c) 0 6px,transparent 6px 8px)} .splitbar div:last-child{border-right:0}
+.legend{display:flex;gap:22px;flex-wrap:wrap;font-size:12px;color:var(--muted)} .legend span{display:inline-flex;align-items:center;gap:8px} .legend b{color:var(--ink);font-weight:500}
+.chartbox{margin-top:30px;border:1px solid var(--hair);padding:16px 18px 12px;background:color-mix(in srgb,var(--paper) 50%,transparent)}
+.chartbox .hd{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:10px}
+.chartbox canvas{display:block;width:100%;image-rendering:pixelated}
+.cols2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:40px;margin-top:34px}
+.lrow{display:grid;grid-template-columns:14px minmax(0,1.2fr) minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--hair);font-size:13px}
+.lrow .sub{color:var(--muted);font-size:11.5px} .lrow .r{text-align:right;white-space:nowrap}
+.hl{border-top:1px solid var(--hair);margin-top:12px}
+.tape .tr{display:grid;grid-template-columns:62px minmax(0,1fr) 70px 54px;gap:12px;padding:8px 0;border-bottom:1px solid color-mix(in srgb,var(--hair) 70%,transparent);font-size:12.5px}
+.tape .tr .t{color:var(--faint)} .tape .tr a{color:var(--muted);text-decoration:none;text-align:right} .tape .tr a:hover{color:var(--accent)}
+.tag2{display:inline-block;font-size:11px;padding:.05em .5em;border:1px solid var(--hair);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.tag2.app{border-color:color-mix(in srgb,var(--accent) 55%,transparent);color:var(--accent)} .tag2.pro{color:var(--term)} .tag2.un{color:var(--faint)}
+.note{margin-top:26px;font-size:12px;color:var(--muted);line-height:1.7;max-width:70ch}
+.prog{height:2px;background:var(--hair);margin-top:12px;max-width:580px;overflow:hidden} .prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+/* share bar + spark */
+.sb{position:relative;display:block;height:10px;background:repeating-linear-gradient(90deg,var(--term) 0 2px,transparent 2px 4px);opacity:.95}
+.sb i{position:absolute;left:0;top:0;bottom:0;background:var(--accent)} .sb b{position:absolute;top:-4px;bottom:-4px;width:1px;background:var(--ink);left:50%}
+.spark{display:block;width:100%;height:28px}
+/* live */
+.bigstats{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.bigstats>div{padding:22px 22px 24px 0} .bigstats>div+div{padding-left:22px;border-left:1px solid var(--hair)}
+.bigstats .v{font-size:clamp(30px,3.4vw,46px);font-weight:500;letter-spacing:-.04em;margin-top:10px;line-height:1}
+.feature{display:grid;grid-template-columns:auto 1fr auto;gap:8px 28px;align-items:end;padding:34px 0;border-bottom:1px solid var(--hair)}
+.feature .big{font-size:clamp(40px,5vw,68px);font-weight:600;letter-spacing:-.045em;line-height:.95}
+.feature .what{font-size:15px;line-height:1.6} .feature .what span{color:var(--muted)}
+.feature .side{font-size:12px;color:var(--muted);text-align:right;line-height:1.8}
+.feature.wait{display:block;color:var(--faint);font-size:13px}
+.wl .lrow{grid-template-columns:14px minmax(0,1fr) minmax(0,1.1fr) 110px 86px;cursor:pointer}
+.wl .lrow:hover{background:color-mix(in srgb,var(--paper) 60%,transparent)}
+.wl .head{cursor:default;color:var(--faint);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;padding:14px 0 10px} .wl .head:hover{background:none}
+.st{font-size:11px;letter-spacing:.06em;text-transform:uppercase} .st.crossed{color:var(--accent)} .st.crossing{color:var(--ink)} .st.pro-led{color:var(--term)} .st.thin{color:var(--faint)}
+.sub2{margin:44px 0 6px;display:flex;justify-content:space-between;align-items:baseline}
+.out .log{height:300px;margin-top:6px} .out .log div{grid-template-columns:70px 64px 1fr;border-bottom:1px solid color-mix(in srgb,var(--hair) 60%,transparent)}
+.out .log b{font-weight:500}
+/* signals */
+.facts{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.facts>div{padding:18px 18px 20px 0} .facts>div+div{padding-left:18px;border-left:1px solid var(--hair)} .facts .v{font-size:22px;margin-top:8px;letter-spacing:-.02em}
+.sigt .sr{display:grid;grid-template-columns:92px minmax(0,1.1fr) minmax(0,1fr) 64px 64px 64px 110px;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--hair);font-size:12.5px}
+.sigt .sr.head{color:var(--faint);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;padding:16px 0 10px}
+.sigt .sr .r{text-align:right} .up{color:var(--accent)} .dn{color:var(--red)}
+.sigt .empty{padding:36px 0;color:var(--faint);font-size:13px;line-height:1.9;border-bottom:1px solid var(--hair)}
+/* fingerprints */
+.fpcols{display:grid;grid-template-columns:1fr 1fr;gap:44px}
+.fp .lrow{grid-template-columns:14px minmax(0,1fr) auto} .fp h3{font-size:13px;font-weight:500;display:flex;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.fp .what{color:var(--muted);font-size:11.5px;margin-top:2px}
+/* token */
+.out .split{margin-top:0} .rows b{width:3.4em}
+.callout{display:flex;align-items:center;gap:24px;justify-content:space-between;margin-top:44px;padding:26px 28px;border:1px solid var(--line);background:color-mix(in srgb,var(--paper) 70%,transparent)}
+.callout p{font-size:15px;line-height:1.6;max-width:46ch} .callout p span{color:var(--muted)}
+.out .man summary{padding:20px 0}
+footer.f2{position:relative;z-index:1;border-top:1px solid var(--hair);padding:120px 0 50px;overflow:hidden}
+footer.f2 .big{font-size:clamp(40px,7.4vw,118px);letter-spacing:-.06em;line-height:.92;font-weight:400} footer.f2 .big b{font-weight:700;color:var(--accent)}
+footer.f2 .fine{display:flex;gap:24px;flex-wrap:wrap;margin-top:60px;font-size:12px;color:var(--muted);border-top:1px solid var(--hair);padding-top:20px}
+@media (max-width:1100px){ .nav a.x{display:none} }
+@media (max-width:980px){
+  .sess>.wrap{grid-template-columns:1fr;gap:34px;padding-top:84px;padding-bottom:84px} .rail{position:static}
+  .story{height:auto} .story>.wrap{position:static;height:auto;padding-top:84px;padding-bottom:84px}
+  .bigstats,.facts{grid-template-columns:1fr 1fr} .bigstats>div:nth-child(3),.facts>div:nth-child(3){padding-left:0;border-left:0}
+  .bigstats>div:nth-child(n+3),.facts>div:nth-child(n+3){border-top:1px solid var(--hair)}
+  .cols2,.fpcols{grid-template-columns:1fr}
+}
+@media (max-width:860px){
+  .hero2{min-height:0;padding:28px 0 130px} .hero2 .wrap{grid-template-columns:1fr;gap:0} .hero2 .vis{height:230px !important;order:-1} .hero2 h1{margin:20px 0}
+  .top .live{display:none} .top .btn{margin-left:auto}
+  .statusrow .wrap{flex-wrap:wrap;gap:8px 18px} .statusrow .ca{margin:0;width:100%}
+  .inbar button span{display:none} .prompt{font-size:13px}
+  .feature{grid-template-columns:1fr} .feature .side{text-align:left} .callout{flex-direction:column;align-items:flex-start}
+  .wl .lrow{grid-template-columns:14px minmax(0,1fr) 90px 70px} .wl .lrow .spk{display:none}
+  .sigt .sr{grid-template-columns:minmax(0,1fr) 74px 56px 56px} .sigt .sr .hide{display:none}
+  .tape .tr{grid-template-columns:52px minmax(0,1fr) 62px} .tape .tr a{display:none}
+  .verdict .act{margin-left:0} .rail .cmd{white-space:normal;word-break:break-word}
+}
+</style>
+</head>
+<body>
+
+<header class="top" id="top"><div class="wrap">
+  <a class="brand" href="#hero"><canvas id="logo"></canvas>crossover</a>
+  <nav class="nav"><a href="#story">how</a><a href="#tool">read</a><a href="#live">live</a><a href="#signals">signals</a><a class="x" href="#fp">list</a><a class="x" href="#token">token</a><a href="#faq">faq</a></nav>
+  <span class="live"><i class="dot" id="topDot"></i><span id="topLive">connecting…</span></span>
+  <a class="btn" id="buyTop" href="#token">buy</a>
+</div></header>
+
+<section class="hero2" id="hero">
+  <canvas class="bg" id="heroBg"></canvas>
+  <div class="wrap">
+    <div>
+      <div class="prompt"><span>anon@crossover ~ %</span> <span class="cmd" id="typed"></span><span class="cur"></span></div>
+      <h1>buys when it<br>hits <b>the apps.</b></h1>
+      <p class="lede">Every buy leaves a fingerprint: a <b>pro terminal</b> or a <b>consumer app</b>. CROSSOVER reads them live and buys the moment a coin crosses over to the apps, before the app wave lands.</p>
+      <div class="inbar"><input id="hIn" placeholder="paste a mint to read its flow" autocomplete="off" spellcheck="false" aria-label="mint"><button id="hGo">▶ <span>read flow</span></button></div>
+      <div class="hint" id="heroHint"></div>
+      <div class="try" id="tryHero"><span>or read a coin the engine is watching:</span><span class="mut">loading…</span></div>
+      <div class="liveline"><i class="dot" id="lineDot"></i><span id="liveline">connecting to the engine…</span></div>
+    </div>
+    <div class="vis" id="heroVis" style="height:560px"></div>
+  </div>
+  <div class="statusrow"><div class="wrap"><span><i class="dot" id="srDot"></i><span id="srText">flow reader: live</span></span><span><i class="dot term"></i>fingerprints: estimate</span><span><i class="dot"></i>engine buys: preview</span><span class="ca">ca <code id="ca">posted here and on X at launch</code> <button class="chip" id="copy" hidden>copy</button></span></div></div>
+</section>
+
+<section class="sess story" id="story"><div class="wrap">
+  <div class="rail">
+    <div class="n">01</div>
+    <div class="cmd">anon@crossover ~ % <b>crossover story</b></div>
+    <h2>the pros come first.</h2>
+    <p>A memecoin's first buyers sit in terminals and bots. The crowd comes later, from apps on their phones. CROSSOVER buys the switch.</p>
+    <ol class="beats" id="beats">
+      <li><b>01</b>A coin launches. Almost every buy comes from a terminal or a bot.</li>
+      <li><b>02</b>CROSSOVER fingerprints each buy: fee wallets, app programs, gas sponsors, tip routes.</li>
+      <li><b>03</b>The coin reaches the apps. pump.fun app, Fomo and Phantom buys start to stack.</li>
+      <li><b>04</b>App share passes 50% with net buying. That's the crossover. The engine buys.</li>
+    </ol>
+  </div>
+  <div class="out"><div class="storybox"><div class="hd"><span>minute <b id="minN">1</b> since launch</span><span class="tag">illustration</span></div><canvas id="storyCv"></canvas></div></div>
+</div></section>
+
+<section class="sess" id="tool"><div class="wrap">
+  <div class="rail">
+    <div class="n">02</div>
+    <div class="cmd">anon@crossover ~ % <b>crossover read</b> <span class="lamp live">live</span></div>
+    <h2>read any coin.</h2>
+    <p>Paste a mint from pump.fun or LaunchLab. CROSSOVER pulls its latest trades straight from Solana and splits every buy by where it came from.</p>
+    <div class="ctl"><div class="k">buys to read</div><div class="toggles" id="sizeT"><button class="chip" data-n="40">40</button><button class="chip on" data-n="60">60</button><button class="chip" data-n="100">100</button></div>
+      <p style="font-size:12px">More buys take longer on the free RPC. Nothing to connect, nothing to sign.</p></div>
+  </div>
+  <div class="out">
+    <div class="inbar" style="max-width:none;box-shadow:none"><input id="tIn" placeholder="paste a mint" autocomplete="off" spellcheck="false" aria-label="mint"><button id="tGo">▶ <span>read flow</span></button></div>
+    <div class="prog" id="prog" hidden><i></i></div>
+    <div class="hint" id="toolHint"></div>
+    <div class="result" id="result"><div class="empty">nothing read yet. paste a mint above, or pick a coin from the live list below.<br><span class="acc">crossover read --mint &lt;ca&gt;</span></div></div>
+  </div>
+</div></section>
+
+<section class="sess" id="live"><div class="wrap">
+  <div class="rail">
+    <div class="n">03</div>
+    <div class="cmd">anon@crossover ~ % <b>tail -f crossover.log</b></div>
+    <h2>the flow, live.</h2>
+    <p>The engine watches the hottest pump.fun and LaunchLab coins around the clock and reads their buys as they land. <span class="lamp" id="lamp">connecting</span></p>
+    <div class="ctl"><div class="k">the rule</div><p style="font-size:12.5px" id="ruleTxt">App share of matched buys passes 50% in a 10-minute window, up at least 10 points on the 10 minutes before, with more SOL buying than selling.</p></div>
+  </div>
+  <div class="out">
+    <div class="bigstats">
+      <div><div class="k">buys fingerprinted · 24h</div><div class="v" id="sA">–</div></div>
+      <div><div class="k">app share · 24h</div><div class="v acc" id="sB">–</div></div>
+      <div><div class="k">crossovers · 24h</div><div class="v" id="sC">–</div></div>
+      <div><div class="k">coins watched now</div><div class="v" id="sD">–</div></div>
+    </div>
+    <div class="feature wait" id="feature">the next crossover shows up here, big.</div>
+    <div class="sub2"><span class="k">watching now · tap a coin to read it</span><span class="k" id="upd"></span></div>
+    <div class="wl" id="wl"></div>
+    <div class="sub2"><span class="k">engine log</span><span class="k" id="srcTop"></span></div>
+    <div class="log" id="log"></div>
+  </div>
+</div></section>
+
+<section class="sess" id="signals"><div class="wrap">
+  <div class="rail">
+    <div class="n">04</div>
+    <div class="cmd">anon@crossover ~ % <b>crossover signals --since launch</b></div>
+    <h2>every call, kept.</h2>
+    <p>Each crossover is logged with the price at that moment, then checked 15 minutes, 1 hour and 4 hours later. Good calls and bad ones stay in the log.</p>
+  </div>
+  <div class="out">
+    <div class="facts">
+      <div><div class="k">crossovers logged</div><div class="v" id="fA">–</div></div>
+      <div><div class="k">measured at 1h</div><div class="v" id="fB">–</div></div>
+      <div><div class="k">up after 1h</div><div class="v" id="fC">–</div></div>
+      <div><div class="k">median at 1h</div><div class="v" id="fD">–</div></div>
+    </div>
+    <div class="sigt" id="sigt"></div>
+  </div>
+</div></section>
+
+<section class="sess" id="fp"><div class="wrap">
+  <div class="rail">
+    <div class="n">05</div>
+    <div class="cmd">anon@crossover ~ % <b>crossover fp --list</b></div>
+    <h2>how it tells them apart.</h2>
+    <p>Terminals and apps take their fee inside the same transaction you sign. Some apps even pay your gas from their own wallet. Those wallets and programs are the fingerprints.</p>
+    <div class="ctl"><p style="font-size:12.5px" id="fpCount"></p><a class="btn" id="fpLink" href="#" target="_blank" rel="noopener">fingerprints.json ↗</a></div>
+  </div>
+  <div class="out">
+    <div class="fpcols">
+      <div class="fp"><h3><span class="acc">apps</span><span class="mut" id="fpA"></span></h3><div id="fpApps"></div></div>
+      <div class="fp"><h3><span class="tm">terminals &amp; bots</span><span class="mut" id="fpP"></span></h3><div id="fpPro"></div></div>
+    </div>
+    <p class="note">This is an estimate. A buy with no known fingerprint is counted as unmatched and left out of the share: direct trades, custom bots and apps that aren't on the list yet. The list is open and grows. Addresses come from public on-chain research (DefiLlama fee adapters) and Helius' docs.</p>
+  </div>
+</div></section>
+
+<section class="sess" id="token"><div class="wrap">
+  <div class="rail">
+    <div class="n">06</div>
+    <div class="cmd">anon@crossover ~ % <b>crossover token</b></div>
+    <h2>fees feed the engine.</h2>
+    <p>Trading fees on $CROSSOVER fund the engine and buy back the token. Every $1.00 splits the same way.</p>
+    <div class="ctl"><div class="ctas" style="margin-top:0"><a class="btn pri" id="buy" href="#">buy on LaunchLab</a><a class="btn" id="xlink" href="#">follow on X</a></div></div>
+  </div>
+  <div class="out">
+    <div class="split"><div style="flex:50;--c:var(--accent)"></div><div style="flex:30;--c:var(--red)"></div><div style="flex:20;--c:var(--faint)"></div></div>
+    <div class="rows"><div><b class="acc">$.50</b>engine treasury: buys on every crossover <span class="tag">preview</span></div><div><b class="red">$.30</b>buyback + burn $CROSSOVER</div><div><b>$.20</b>RPC and data, so the reader stays fast and free</div></div>
+    <div class="facts" style="margin-top:44px">
+      <div><div class="k">ticker</div><div class="v">$CROSSOVER</div></div><div><div class="k">chain</div><div class="v">solana</div></div>
+      <div><div class="k">launchpad</div><div class="v">raydium launchlab</div></div><div><div class="k">supply</div><div class="v">1,000,000,000</div></div>
+    </div>
+    <div class="callout"><p>Every call is on the record. <span>Check the signal log before you buy: wins, losses and everything in between.</span></p><a class="btn pri" href="#signals">see the log</a></div>
+  </div>
+</div></section>
+
+<section class="sess" id="faq"><div class="wrap">
+  <div class="rail">
+    <div class="n">07</div>
+    <div class="cmd">anon@crossover ~ % <b>man crossover</b></div>
+    <h2>the fine print.</h2>
+    <p>What's live, what's preview, and what it will never ask you for.</p>
+  </div>
+  <div class="out"><div class="man">
+    <details open><summary>is this financial advice?</summary><p>No. CROSSOVER shows where a coin's buys come from. A crossover is a signal, not a promise, and the signal log shows the misses too.</p></details>
+    <details><summary>what's live and what's preview?</summary><p>Live: the fingerprint list, the reader, the engine watching coins around the clock, the crossover rule and the signal log with prices after 15 min, 1 h and 4 h. Preview: the engine's own buys and its treasury. The log shows what it would buy; it doesn't trade yet.</p></details>
+    <details><summary>how does it know a buy came from an app?</summary><p>Apps and terminals leave traces inside the transaction: a fee sent to their wallet, their own program, a sponsor paying the gas, or a tip to a fast sender. CROSSOVER matches every buy against an open list of those addresses. It's an estimate, and buys it can't match are left out of the share.</p></details>
+    <details><summary>why does app flow matter?</summary><p>App users arrive later and in bigger numbers. Pump.fun's app alone does tens of millions in daily volume and passed Fomo, the biggest social trading app. When a coin's buys switch from terminals to apps, the crowd has found it.</p></details>
+    <details><summary>do I need a wallet?</summary><p>No. Reading is free and needs nothing. Never paste a seed phrase or private key anywhere.</p></details>
+    <details><summary>will crossover DM me?</summary><p>Never. Anyone who does is not us.</p></details>
+  </div></div>
+</div></section>
+
+<footer class="f2"><div class="wrap">
+  <div class="big">buys when it<br>hits <b>the apps.</b><span class="cur"></span></div>
+  <div class="ctas" style="margin-top:40px"><a class="btn pri" href="#tool">read a coin</a><a class="btn" href="#live">watch the flow</a></div>
+  <div class="fine"><span>$CROSSOVER · solana · raydium launchlab</span><span>not financial advice</span><span>fingerprints are estimates</span><span id="cafoot"></span></div>
+</div></footer>
+
+<script src="termkit.js"></script>
+<script src="flow.js"></script>
+<script>
+const CONFIG = {
+  ca: "",                                   // contract address, posted at launch
+  x: "https://x.com/",                      // X account
+  repo: "buzzlightyear163/crossover",       // GitHub repo (engine data + fingerprint list)
+  ticker: "$CROSSOVER", theme: document.documentElement.dataset.theme,
+};
+const FP_INLINE = /*@FP@*/null, SNAP = /*@SNAP@*/null;
+const T = TK.THEMES[CONFIG.theme], reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"]/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+const web = /^https?:/.test(location.protocol);
+const RAW = f => `https://raw.githubusercontent.com/${CONFIG.repo}/${f}`;
+const pct = v => v === null || v === undefined ? "–" : Math.round(v * 100) + "%";
+const hhmm = t => new Date(t).toTimeString().slice(0, 5), hhmmss = t => new Date(t).toTimeString().slice(0, 8);
+const ago = t => { const s = Math.max(0, (Date.now() - t) / 1000); return s < 60 ? Math.round(s) + "s ago" : s < 3600 ? Math.round(s / 60) + "m ago" : s < 86400 ? Math.round(s / 3600) + "h ago" : Math.round(s / 86400) + "d ago"; };
+const sh = m => m ? m.slice(0, 4) + "…" + m.slice(-4) : "";
+const sol = v => v >= 100 ? Math.round(v) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
+const signed = v => v === null || v === undefined ? "–" : (v > 0 ? "+" : "") + (Math.abs(v) >= 100 ? Math.round(v) : v.toFixed(1)) + "%";
+const MINT = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+// ---------- token links ----------
+if (CONFIG.ca) { $("#ca").textContent = CONFIG.ca; $("#copy").hidden = false; $("#cafoot").textContent = "ca " + CONFIG.ca;
+  $("#copy").onclick = () => navigator.clipboard.writeText(CONFIG.ca).then(() => $("#copy").textContent = "copied").catch(() => {});
+  ["#buy", "#buyTop"].forEach(s => $(s).href = "https://raydium.io/launchpad/token/?mint=" + CONFIG.ca); }
+else { $("#buy").removeAttribute("href"); $("#buy").textContent = "live at launch"; $("#buy").style.opacity = .6; }
+$("#xlink").href = CONFIG.x;
+$("#fpLink").href = `https://github.com/${CONFIG.repo}/blob/main/fingerprints.json`;
+
+// ---------- logo ----------
+{ const g = TK.OBJECTS.phone({}), c = $("#logo"), k = 2;
+  c.width = g.w * k; c.height = g.h * k; TK.draw(c.getContext("2d"), g, { theme: T, cell: k, x: 0, y: 0, shadow: false });
+  c.style.width = Math.round(26 * g.w / g.h) + "px"; }
+{ const cmd = "crossover watch --apps", el = $("#typed"); if (reduce) el.textContent = cmd;
+  else { let i = 0; const t = setInterval(() => { el.textContent = cmd.slice(0, ++i); if (i >= cmd.length) clearInterval(t); }, 70); } }
+
+// ---------- hero: two lanes of buys. terminal flow switches lanes at 45° (the shadow's angle) into the app lane and the phone ----------
+const HERO = { L: null, packets: [], last: 0, pressUntil: 0, lastPress: 0, nextT: 0, nextA: 0, running: false, cross: .55 };
+function layoutHero() {
+  const hero = $("#hero"), c = $("#heroBg"), d = devicePixelRatio || 1, r = hero.getBoundingClientRect(), a = $("#heroVis").getBoundingClientRect();
+  c.width = Math.round(r.width * d); c.height = Math.round(r.height * d);
+  const mob = innerWidth <= 860, g = TK.OBJECTS.phone({}), gp = TK.OBJECTS.phone({ press: true });
+  const cell = Math.max(3, Math.floor(Math.min(a.width * (mob ? .34 : .5) / g.w, a.height * .88 / g.h)));
+  const pw = g.w * cell, ph = g.h * cell;
+  const ox = Math.round(a.right - r.left - pw - (mob ? a.width * .08 : 6)), oy = Math.round(a.top - r.top + (a.height - ph) * .46);
+  const layer = (w, h) => { const o = document.createElement("canvas"); o.width = Math.ceil(w * d); o.height = Math.ceil(h * d);
+    const x = o.getContext("2d"); x.scale(d, d); x.imageSmoothingEnabled = false; return [o, x]; };
+  const [base, bx] = layer(r.width, r.height); TK.draw(bx, g, { theme: T, cell, x: ox, y: oy, shadowLen: 2600 });
+  const [obj, ox2] = layer(pw, ph); TK.draw(ox2, g, { theme: T, cell, x: 0, y: 0, shadow: false });
+  const [objP, ox3] = layer(pw, ph); TK.draw(ox3, gp, { theme: T, cell, x: 0, y: 0, shadow: false });
+  const pc = cell, D = pc * (mob ? 7 : 12);
+  const yApp = oy + 21 * cell, yTerm = yApp - D;
+  const x0 = Math.round(a.left - r.left - (mob ? 0 : 36)), xIn = ox + 2 * cell;
+  const sw0 = x0 + Math.round((xIn - x0 - D) * (mob ? .38 : .44) / pc) * pc, sw1 = sw0 + D;
+  HERO.L = { c, d, base, obj, objP, ox, oy, pw, ph, pc, D, yApp, yTerm, x0, xIn, sw0, sw1, xEnd: ox + pw * .5, mob, speed: mob ? 46 : 64 };
+}
+function hpos(p, s) { const L = HERO.L, x = L.x0 + s;
+  if (p.lane === "app") return [x, L.yApp, 1];
+  if (!p.cross || x < L.sw0) return [x, L.yTerm, 0];
+  if (x < L.sw1) { const k = Math.floor((x - L.sw0) / L.pc) * L.pc; return [x, L.yTerm + k, k >= L.D / 2 ? 1 : 0]; }
+  return [x, L.yApp, 1]; }
+function hspawn(lane, s = 0) { HERO.packets.push({ lane, s, cross: lane === "term" && Math.random() < HERO.cross }); }
+function hframe(now) {
+  const L = HERO.L; if (!L) return; const dt = HERO.last ? Math.min(.05, (now - HERO.last) / 1000) : 0; HERO.last = now;
+  if (now > HERO.nextT) { hspawn("term"); HERO.nextT = now + 240 + Math.random() * 260; }
+  if (now > HERO.nextA) { hspawn("app"); HERO.nextA = now + 900 + Math.random() * 700; }
+  const x = L.c.getContext("2d"); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, L.c.width, L.c.height); x.drawImage(L.base, 0, 0);
+  x.setTransform(L.d, 0, 0, L.d, 0, 0); x.imageSmoothingEnabled = false;
+  x.fillStyle = T.line;
+  for (let X = L.x0; X < L.xIn + L.pc * 2; X += L.pc * 2) { x.fillRect(X, L.yTerm + L.pc / 2 - 1, 2, 2); x.fillRect(X, L.yApp + L.pc / 2 - 1, 2, 2); }
+  x.fillStyle = T.accent; x.globalAlpha = .4;
+  for (let k = 0; k < L.D; k += L.pc) x.fillRect(L.sw0 + k + L.pc / 2 - 1, L.yTerm + k + L.pc / 2 - 1, 2, 2);
+  x.globalAlpha = 1;
+  x.font = `500 ${L.mob ? 10 : 11}px "Geist Mono", monospace`;
+  x.fillStyle = T.muted; x.fillText("terminals", L.x0 + 4, L.yTerm - 12);
+  x.fillStyle = T.accent; x.fillText("apps", L.x0 + 4, L.yApp + L.pc + 20);
+  if (!L.mob) x.fillText("crossover ↘", L.sw0 + L.D / 2 + L.pc * 1.6, L.yTerm + L.D / 2 - 2);
+  for (const p of HERO.packets) p.s += L.speed * dt;
+  HERO.packets = HERO.packets.filter(p => { const [px] = hpos(p, p.s);
+    if ((p.lane === "app" || p.cross) && px > L.xIn + L.pc * 3 && !p.hit) { p.hit = 1; if (p.cross && now - HERO.lastPress > 1100) { HERO.pressUntil = now + 160; HERO.lastPress = now; } }
+    return px < (p.lane === "app" || p.cross ? L.xIn + L.pc * 4 : L.xEnd); });
+  for (const p of HERO.packets) for (const [back, al] of [[2.6, .14], [1.3, .32], [0, 1]]) {
+    const s = p.s - back * L.pc; if (s < 0) continue; const [px, py, onApp] = hpos(p, s);
+    x.globalAlpha = al * Math.min(1, (px - L.x0) / 60); x.fillStyle = onApp ? T.accent : "#b3b8a6";
+    x.fillRect(Math.round(px), Math.round(py), L.pc, L.pc); }
+  x.globalAlpha = 1;
+  x.drawImage(now < HERO.pressUntil ? L.objP : L.obj, L.ox, L.oy, L.pw, L.ph);
+}
+function hloop(now) { hframe(now); if (HERO.running) requestAnimationFrame(hloop); }
+function hwarm() { HERO.packets = []; const L = HERO.L, len = L.xIn - L.x0;
+  for (let s = 0; s < len + L.pc * 4; s += L.pc * (2.2 + Math.random() * 2.4)) hspawn("term", s);
+  for (let s = 0; s < len; s += L.pc * (8 + Math.random() * 6)) hspawn("app", s); }
+layoutHero(); hwarm(); if (reduce) hframe(performance.now());
+new IntersectionObserver(es => es.forEach(e => { if (reduce) return;
+  if (e.isIntersecting && !HERO.running) { HERO.running = true; HERO.last = 0; requestAnimationFrame(hloop); } else if (!e.isIntersecting) HERO.running = false; })).observe($("#hero"));
+addEventListener("resize", () => { layoutHero(); if (reduce) hframe(performance.now()); }); document.fonts.ready.then(() => { layoutHero(); if (reduce) hframe(performance.now()); });
+
+// ---------- 01 story: an illustration of one coin's first minutes ----------
+const STORY = { N: 16, at: 10, p: 0,
+  app: [.05, .06, .08, .09, .12, .15, .19, .25, .32, .41, .55, .62, .67, .71, .73, .75] };
+function drawStory() {
+  const c = $("#storyCv"), d = devicePixelRatio || 1, W = Math.round(c.parentElement.clientWidth - 40), H = Math.round(W < 600 ? W * 1.02 : Math.min(W * .62, innerHeight * .58));
+  if (c.width !== W * d || c.height !== H * d) { c.width = W * d; c.height = H * d; c.style.height = H + "px"; }
+  const x = c.getContext("2d"); x.setTransform(d, 0, 0, d, 0, 0); x.clearRect(0, 0, W, H);
+  const S = STORY, p = S.p, N = S.N, cw = W / N, upto = Math.min(N, p * N * 1.25 + .6), F = "11px Geist Mono, monospace", small = W < 600;
+  const top = 26, lane = Math.max(14, Math.min(cw * .62, 26)), ph = H - top - 3 * (lane + 30) - 34, px = Math.max(2, Math.round(cw / 14));
+  const lanesY = [0, 1, 2].map(i => top + ph + 44 + i * (lane + 30));
+  const py = v => top + ph - v * ph;
+  for (let i = 0; i <= N; i++) { x.fillStyle = i <= upto ? "rgba(236,238,227,.07)" : "rgba(236,238,227,.03)"; x.fillRect(Math.round(i * cw), top - 12, 1, H - top + 6); }
+  // 50% line
+  x.fillStyle = T.muted; for (let X = 0; X < W; X += 6) x.fillRect(X, Math.round(py(.5)), 3, 1);
+  x.font = F; x.fillStyle = T.muted; x.fillText("50%", 2, py(.5) - 6);
+  x.fillText("share of buys", 2, top - 14);
+  // the two lines
+  const line = (vals, color) => { x.fillStyle = color;
+    for (let i = 0; i < Math.floor(upto); i++) { const v = vals[i], pv = i ? vals[i - 1] : v, X0 = Math.round(i * cw), X1 = Math.round((i + 1) * cw);
+      for (let X = X0; X < X1; X += px * 1.5) x.fillRect(X, Math.round(py(v)), px, px);
+      for (let Y = Math.min(py(v), py(pv)); Y <= Math.max(py(v), py(pv)); Y += px * 1.5) x.fillRect(X0, Math.round(Y), px, px); } };
+  line(S.app.map(v => 1 - v), T.term); line(S.app, T.accent);
+  if (upto > 2) { const i = Math.min(Math.floor(upto) - 1, N - 1); x.font = "500 11px Geist Mono, monospace";
+    x.fillStyle = T.accent; x.textAlign = "right"; x.fillText("apps " + pct(S.app[i]), W - 2, Math.max(top + 10, py(S.app[i]) - 10));
+    x.fillStyle = T.term; x.fillText("terminals " + pct(1 - S.app[i]), W - 2, Math.min(top + ph + 16, py(1 - S.app[i]) + 18)); x.textAlign = "left"; }
+  // lanes: each slot is 8 sub-blocks, lit by share
+  const lanes = [{ name: "terminals + bots", v: i => 1 - S.app[i], col: T.term }, { name: "apps", v: i => S.app[i], col: T.accent }];
+  lanes.forEach((ln, r) => { const Y = lanesY[r];
+    x.font = F; x.fillStyle = r ? T.accent : T.muted; x.fillText(ln.name, 0, Y - 10);
+    for (let i = 0; i < N; i++) { const X = i * cw + 3, w = cw - 6, seen = i < upto;
+      x.strokeStyle = seen ? T.line : "rgba(53,58,44,.45)"; x.strokeRect(Math.round(X) + .5, Math.round(Y) + .5, Math.round(w) - 1, lane - 1);
+      if (!seen) continue; const lit = Math.round(ln.v(i) * 8), bw = (w - 4) / 4, bh = (lane - 4) / 2;
+      x.fillStyle = ln.col; for (let k = 0; k < lit; k++) x.fillRect(Math.round(X + 2 + (k % 4) * bw) + .5, Math.round(Y + 2 + Math.floor(k / 4) * bh) + .5, Math.max(1, Math.round(bw) - 1), Math.max(1, Math.round(bh) - 1)); } });
+  // engine lane
+  const Y = lanesY[2], on = p > .76; x.font = F; x.fillStyle = T.muted; x.fillText("engine", 0, Y - 10);
+  x.textAlign = "right"; x.fillStyle = on ? T.accent : T.muted; x.fillText(on ? (small ? "buys · preview" : "buys 0.5 SOL · preview") : "watching", W, Y - 10); x.textAlign = "left";
+  for (let i = 0; i < N; i++) { const X = i * cw + 3, w = cw - 6; x.strokeStyle = i < upto ? T.line : "rgba(53,58,44,.45)"; x.strokeRect(Math.round(X) + .5, Math.round(Y) + .5, Math.round(w) - 1, lane - 1); }
+  if (on) { const X = S.at * cw + 3, w = cw - 6; x.fillStyle = T.accent; x.shadowColor = T.accent; x.shadowBlur = 14; x.fillRect(Math.round(X), Y, Math.round(w), lane); x.shadowBlur = 0;
+    if (w >= 26) { x.fillStyle = T.bg; x.font = "600 10px Geist Mono, monospace"; x.textAlign = "center"; x.fillText("buy", X + w / 2, Y + lane / 2 + 3.5); x.textAlign = "left"; } }
+  if (p > .62) { const cx = Math.round(S.at * cw + cw / 2); x.fillStyle = T.accent; for (let Yy = top - 8; Yy < lanesY[2] - 2; Yy += 6) x.fillRect(cx, Yy, 1, 3);
+    x.font = "500 11px Geist Mono, monospace"; x.textAlign = "right"; x.fillText("crossover", cx - 8, top - 1); x.textAlign = "left"; }
+  $("#minN").textContent = Math.max(1, Math.min(N, Math.ceil(upto)) * 3);
+}
+function storyScroll() { const s = $("#story"), r = s.getBoundingClientRect(), span = r.height - innerHeight;
+  STORY.p = innerWidth <= 980 ? 1 : span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 1; drawStory();
+  const n = Math.min(3, Math.floor(STORY.p * 4)); $$("#beats li").forEach((li, i) => { li.classList.toggle("on", i === n); li.classList.toggle("done", i < n); }); }
+addEventListener("scroll", () => requestAnimationFrame(storyScroll), { passive: true }); addEventListener("resize", () => { $("#storyCv").width = 0; storyScroll(); });
+document.fonts.ready.then(() => { $("#storyCv").width = 0; storyScroll(); }); storyScroll();
+
+// ---------- fingerprints ----------
+let FP = FP_INLINE, IX = FP ? FLOW.index(FP) : null;
+const NAME = id => (IX && IX.byId[id] && IX.byId[id].name) || id || "unmatched";
+function renderFP() {
+  if (!FP) return;
+  const row = e => `<div class="lrow"><i class="dot ${e.kind === "app" ? "acc" : "term"}"></i><div><div>${esc(e.name)}${e.strength === "weak" ? ' <span class="tag">weak</span>' : ""}</div><div class="what">${esc(e.what || "")}</div></div><div class="r sub">${e.addresses.length} addr</div></div>`;
+  const A = FP.entries.filter(e => e.kind === "app"), P = FP.entries.filter(e => e.kind === "pro");
+  $("#fpApps").innerHTML = A.map(row).join(""); $("#fpPro").innerHTML = P.map(row).join("");
+  $("#fpA").textContent = A.length; $("#fpP").textContent = P.length;
+  $("#fpCount").textContent = `${FP.entries.reduce((n, e) => n + e.addresses.length, 0)} addresses from ${FP.entries.length} apps and terminals. Updated ${FP.updated || ""}.`;
+}
+renderFP();
+if (web) fetch("/fingerprints.json", { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(j => { if (j && j.entries) { FP = j; IX = FLOW.index(FP); renderFP(); } }).catch(() => {});
+
+// ---------- 02 the reader ----------
+let SIZE = 60, busy = false, lastRead = null;
+$$("#sizeT .chip").forEach(b => b.onclick = () => { $$("#sizeT .chip").forEach(x => x.classList.toggle("on", x === b)); SIZE = +b.dataset.n; });
+const endpoints = () => (web ? ["/api/rpc"] : []).concat(["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com"]);
+function setProg(f, txt) { $("#prog").hidden = f === null; $("#prog i").style.width = Math.round((f || 0) * 100) + "%"; if (txt !== undefined) { $("#toolHint").textContent = txt; $("#toolHint").classList.remove("err"); } }
+async function readFlow(mint, sym) {
+  const hint = $("#toolHint");
+  if (!MINT.test(mint)) { hint.textContent = "that doesn't look like a solana mint address."; hint.classList.add("err"); return false; }
+  if (busy) return false; busy = true; $("#tGo").disabled = $("#hGo").disabled = true; $("#tIn").value = mint;
+  const R = FLOW.rpc(endpoints(), { timeout: 12000 });
+  try {
+    setProg(.03, "finding the latest trades…");
+    let sigs = await R.call("getSignaturesForAddress", [mint, { limit: Math.min(1000, SIZE * 3) }]);
+    sigs = (sigs || []).filter(s => !s.err);
+    if (!sigs.length) throw new Error("no trades found for this mint yet.");
+    const nNew = Math.ceil(SIZE * .7), pick = sigs.slice(0, nNew), rest = sigs.slice(nNew), more = SIZE - pick.length;
+    for (let i = 0; i < more && rest.length; i++) pick.push(rest[Math.floor(i * rest.length / more)]);
+    let done = 0; const trades = [];
+    await FLOW.pool(pick, 4, async s => { const tx = await R.call("getTransaction", [s.signature, FLOW.TXOPT]); done++;
+      setProg(.05 + .95 * done / pick.length, `reading transaction ${done} of ${pick.length}…`);
+      const x = FLOW.classify(tx, mint, IX); if (x) { if (!x.t) x.t = (s.blockTime || 0) * 1000; trades.push(x); } });
+    trades.sort((a, b) => a.t - b.t);
+    if (!trades.length) throw new Error("read " + pick.length + " transactions but none were wallet trades on this mint.");
+    lastRead = { mint, sym, trades, read: pick.length, at: Date.now() };
+    renderResult(lastRead); setProg(null, `read ${pick.length} transactions · ${trades.filter(t => t.side === "buy").length} buys · via ${R.st.ok || "rpc"}`);
+    return true;
+  } catch (e) { setProg(null); hint.textContent = (e && e.message) || "couldn't reach Solana right now. try again in a moment."; hint.classList.add("err"); return false; }
+  finally { busy = false; $("#tGo").disabled = $("#hGo").disabled = false; }
+}
+function renderResult(rd) {
+  const tr = rd.trades, th = IX.threshold, buys = tr.filter(t => t.side === "buy");
+  const S = FLOW.summarize(tr, 0, Infinity);
+  const t0 = tr[0].t, t1 = tr[tr.length - 1].t, mid = t0 + (t1 - t0) / 2;
+  const cur = FLOW.summarize(tr, mid, Infinity), prev = FLOW.summarize(tr, 0, mid), stt = FLOW.status(cur, prev, th);
+  const span = Math.max(60e3, t1 - t0), n = 12, step = span / (n - 1), ser = FLOW.series(tr, t1 + 1, step, n, Math.max(step * 3, 60e3));
+  let crossAt = null; for (let i = 1; i < n; i++) if (ser[i - 1] !== null && ser[i] !== null && ser[i - 1] < th && ser[i] >= th) crossAt = t1 - (n - 1 - i) * step;
+  const vt = { crossed: crossAt ? `crossed over to the apps <span>around ${hhmm(crossAt)}</span>` : "on the apps <span>app buys lead right now</span>",
+    crossing: "app share rising <span>not crossed yet</span>", "pro-led": "still a terminal coin <span>pros lead the buying</span>", thin: "not enough matched buys <span>to call it</span>" }[stt];
+  const un = S.nUn, tot = Math.max(1, S.nBuy);
+  const src = Object.entries(S.bySrc).sort((a, b) => b[1].n - a[1].n);
+  const name = rd.sym ? "$" + esc(rd.sym) : sh(rd.mint);
+  $("#result").innerHTML = `
+    <div class="verdict"><div class="big ${cur.share !== null && cur.share >= th ? "acc" : ""}">${pct(cur.share ?? S.share)}</div>
+      <div class="vt"><div class="k" style="margin-bottom:6px">app share now · ${name} · ${prev.share !== null ? "was " + pct(prev.share) + " earlier in the read" : S.n + " matched buys"}</div>${vt}</div>
+      <div class="act"><button class="btn" id="copyRes">copy result</button></div></div>
+    <div class="splitbar"><div style="flex:${S.nApp};--c:var(--accent)"></div><div style="flex:${S.nPro};--c:var(--term)"></div><div style="flex:${un};--c:var(--faint)"></div></div>
+    <div class="legend"><span><i class="dot acc"></i>apps <b>${S.nApp}</b></span><span><i class="dot term"></i>terminals + bots <b>${S.nPro}</b></span><span><i class="dot"></i>unmatched <b>${un}</b></span><span>buys ${sol(S.buySol)} SOL · sells ${sol(S.sellSol)} SOL</span></div>
+    <div class="chartbox"><div class="hd"><span>app share over the trades read · ${hhmm(t0)} → ${hhmm(t1)}</span><span class="tag">estimate</span></div><canvas id="rdCv"></canvas></div>
+    <div class="cols2">
+      <div><div class="k">where the buys came from</div><div class="hl">${src.length ? src.map(([id, v]) => { const e = IX.byId[id] || {};
+        return `<div class="lrow" style="grid-template-columns:14px minmax(0,1fr) auto auto"><i class="dot ${e.kind === "app" ? "acc" : "term"}"></i><div>${esc(e.name || id)}<div class="sub">${e.kind === "app" ? "app" : "terminal / bot"}${e.strength === "weak" ? " · weak" : ""}</div></div><div class="r">${v.n} buys</div><div class="r sub">${sol(v.sol)} SOL</div></div>`; }).join("") : '<div class="lrow" style="grid-template-columns:1fr"><span class="faint">no known fingerprints in these buys</span></div>'}</div></div>
+      <div><div class="k">latest buys</div><div class="tape hl">${buys.slice(-12).reverse().map(b => `<div class="tr"><span class="t">${hhmmss(b.t)}</span><span><span class="tag2 ${b.kind || "un"}">${esc(b.src ? NAME(b.src) : "unmatched")}</span></span><span>${sol(b.sol)} SOL</span><a href="https://solscan.io/tx/${esc(b.sig)}" target="_blank" rel="noopener">tx ↗</a></div>`).join("")}</div></div>
+    </div>
+    <p class="note">Matched ${Math.round(S.n / tot * 100)}% of ${tot} buys read. The share only counts matched buys, each capped at 2 SOL so one whale can't flip it. Unmatched buys are direct trades, custom bots or apps that aren't on the list yet.</p>`;
+  drawReadChart(ser, t0, t1, crossAt);
+  $("#copyRes").onclick = () => { const txt = `CROSSOVER read ${rd.sym ? "$" + rd.sym : rd.mint}: app share ${pct(cur.share ?? S.share)} now (${S.nApp} app / ${S.nPro} terminal buys of ${tot} read). ${stt === "crossed" ? "Crossed over to the apps." : stt === "crossing" ? "App share rising." : "Still a terminal coin."}`;
+    navigator.clipboard.writeText(txt).then(() => $("#copyRes").textContent = "copied").catch(() => {}); };
+}
+function drawReadChart(ser, t0, t1, crossAt) {
+  const c = $("#rdCv"); if (!c) return; const d = devicePixelRatio || 1, W = c.parentElement.clientWidth - 36, H = Math.round(Math.min(220, Math.max(150, W * .3)));
+  c.width = W * d; c.height = H * d; c.style.height = H + "px"; const x = c.getContext("2d"); x.scale(d, d);
+  const n = ser.length, cw = W / n, top = 10, ph = H - 34, py = v => top + ph - v * ph, px = Math.max(3, Math.round(cw / 9));
+  x.fillStyle = T.muted; for (let X = 0; X < W; X += 6) x.fillRect(X, Math.round(py(.5)), 3, 1);
+  x.font = "11px Geist Mono, monospace"; x.fillText("50%", 2, py(.5) - 6);
+  const line = (f, col) => { x.fillStyle = col; let pv = null;
+    ser.forEach((v, i) => { if (v === null) { pv = null; return; } const y = py(f(v)), X0 = Math.round(i * cw);
+      for (let X = X0; X < X0 + cw; X += px * 1.5) x.fillRect(X, Math.round(y), px, px);
+      if (pv !== null) for (let Y = Math.min(y, pv); Y <= Math.max(y, pv); Y += px * 1.5) x.fillRect(X0, Math.round(Y), px, px); pv = y; }); };
+  line(v => 1 - v, T.term); line(v => v, T.accent);
+  x.fillStyle = T.faint; x.fillText(hhmm(t0), 0, H - 4); x.textAlign = "right"; x.fillText(hhmm(t1), W, H - 4); x.textAlign = "left";
+  if (crossAt) { const i = Math.round((crossAt - t0) / Math.max(1, t1 - t0) * (n - 1)), cx = Math.round(i * cw + cw / 2); x.fillStyle = T.accent;
+    for (let Y = top; Y < top + ph; Y += 6) x.fillRect(cx, Y, 1, 3); x.textAlign = cx > W / 2 ? "right" : "left"; x.fillText("crossover " + hhmm(crossAt), cx + (cx > W / 2 ? -8 : 8), top + 12); x.textAlign = "left"; }
+  if (ser.every(v => v === null)) { x.fillStyle = T.faint; x.fillText("too few matched buys to draw a line", 8, top + ph / 2); }
+}
+function go(inp, hint, scroll) { const v = $(inp).value.trim(); const h = $(hint);
+  if (!MINT.test(v)) { h.textContent = "that doesn't look like a solana mint address."; h.classList.add("err"); return; }
+  h.textContent = ""; h.classList.remove("err");
+  if (scroll) $("#tool").scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
+  readFlow(v, null); }
+$("#hGo").onclick = () => go("#hIn", "#heroHint", true); $("#tGo").onclick = () => go("#tIn", "#toolHint", false);
+$("#hIn").onkeydown = e => { if (e.key === "Enter") $("#hGo").click(); }; $("#tIn").onkeydown = e => { if (e.key === "Enter") $("#tGo").click(); };
+function readCoin(m, sym) { if (SRC === "preview") { $("#heroHint").textContent = "preview data. paste a real mint to read it."; return; } $("#tIn").value = m; $("#tool").scrollIntoView({ behavior: reduce ? "auto" : "smooth" }); readFlow(m, sym); }
+
+// ---------- 03/04 the engine's data ----------
+let DATA = null, SRC = "";
+function spark(series) { const v = series || [], n = v.length; if (!n) return "";
+  const pts = []; v.forEach((s, i) => { if (s !== null) pts.push(`${(i / (n - 1) * 100).toFixed(1)},${(26 - s * 24).toFixed(1)}`); });
+  return `<svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none"><line x1="0" x2="100" y1="14" y2="14" stroke="${T.line}" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"/>${pts.length > 1 ? `<polyline fill="none" stroke="${T.accent}" stroke-width="1.6" vector-effect="non-scaling-stroke" points="${pts.join(" ")}"/>` : ""}</svg>`; }
+function render(D, src) {
+  DATA = D; SRC = src; const now = Date.now(), age = now - D.updated, live = src !== "preview" && age < 20 * 60e3;
+  const t = D.totals || {}, lamp = $("#lamp");
+  lamp.className = "lamp" + (live ? " live" : ""); lamp.textContent = src === "preview" ? "preview" : live ? "live" : "delayed · " + ago(D.updated);
+  $("#topDot").className = "dot" + (live ? " on" : ""); $("#lineDot").className = "dot" + (live ? " on" : ""); $("#srDot").className = "dot" + (src !== "preview" ? " on" : "");
+  $("#topLive").textContent = src === "preview" ? "engine: preview" : `${t.cross24 || 0} crossover${t.cross24 === 1 ? "" : "s"} today`;
+  $("#liveline").innerHTML = src === "preview" ? "preview · the engine's live numbers appear here once it's running"
+    : `${live ? "live" : "updated " + ago(D.updated)} · <b>${(t.buys24 || 0).toLocaleString("en-US")}</b> buys fingerprinted in 24h · app share <b>${pct(t.share24)}</b> · <b>${t.cross24 || 0}</b> crossover${t.cross24 === 1 ? "" : "s"} today`;
+  $("#sA").textContent = (t.buys24 || 0).toLocaleString("en-US"); $("#sB").textContent = pct(t.share24); $("#sC").textContent = t.cross24 ?? 0; $("#sD").textContent = (D.watch || []).length;
+  $("#upd").textContent = src === "preview" ? "preview data" : "updated " + ago(D.updated);
+  if (D.rule && D.threshold) $("#ruleTxt").textContent = `App share of matched buys passes ${Math.round(D.threshold * 100)}% in a ${Math.round(D.rule.window / 60e3)}-minute window, up at least ${Math.round(D.rule.rise * 100)} points on the ${Math.round(D.rule.window / 60e3)} minutes before, with more SOL buying than selling.`;
+  const top3 = (D.sources || []).slice(0, 3).map(s => `${NAME(s.id)} ${s.n}`).join(" · "); $("#srcTop").textContent = top3 ? "top sources 24h: " + top3 : "";
+  // hero chips
+  const W = (D.watch || []).slice().sort((a, b) => ({ crossed: 0, crossing: 1, "pro-led": 2, thin: 3 }[a.status] - { crossed: 0, crossing: 1, "pro-led": 2, thin: 3 }[b.status]));
+  $("#tryHero").innerHTML = `<span>or read a coin the engine is watching:</span>` + (W.length ? W.slice(0, 4).map(w => `<button class="chip" data-m="${esc(w.m)}" data-s="${esc(w.sym)}">$${esc(w.sym)}<small class="${w.share >= (D.threshold || .5) ? "acc" : ""}">${pct(w.share)}</small></button>`).join("") : '<span class="faint">none right now</span>');
+  $$("#tryHero .chip").forEach(b => b.onclick = () => readCoin(b.dataset.m, b.dataset.s));
+  // feature: latest crossover
+  const s0 = (D.signals || [])[0], f = $("#feature");
+  if (s0) { f.className = "feature"; const o = s0.out || {};
+    f.innerHTML = `<div><div class="k" style="margin-bottom:12px">latest crossover · ${ago(s0.t)} · ${esc(s0.lp)}</div><div class="big">$${esc(s0.sym)}</div></div>
+      <div class="what"><span class="acc">app share ${pct(s0.prev)} → ${pct(s0.share)}</span><br><span>${s0.n} matched buys${s0.via ? " · led by " + esc(NAME(s0.via)) : ""} · engine buy ${s0.engine ? s0.engine.sol : 0.5} SOL <span class="tag">preview</span></span></div>
+      <div class="side">+15m <b class="${o.m15 > 0 ? "up" : o.m15 < 0 ? "dn" : ""}">${typeof o.m15 === "number" ? signed(o.m15) : "measuring"}</b><br>+1h <b class="${o.h1 > 0 ? "up" : o.h1 < 0 ? "dn" : ""}">${typeof o.h1 === "number" ? signed(o.h1) : "measuring"}</b><br><a href="#" data-m="${esc(s0.m)}" data-s="${esc(s0.sym)}" class="acc rd">read it ↗</a></div>`;
+    f.querySelector(".rd").onclick = e => { e.preventDefault(); readCoin(s0.m, s0.sym); }; }
+  else { f.className = "feature wait"; f.textContent = src === "preview" ? "the next crossover shows up here, big." : "no crossover yet. the engine is watching " + (D.watch || []).length + " coins."; }
+  // watch list
+  $("#wl").innerHTML = `<div class="lrow head"><span></span><span>coin</span><span class="spk">app share · last 30 min</span><span>now</span><span class="r">status</span></div>` +
+    (W.length ? W.map(w => `<div class="lrow" data-m="${esc(w.m)}" data-s="${esc(w.sym)}"><i class="dot ${w.status === "crossed" ? "acc" : w.status === "crossing" ? "" : "term"}" ${w.status === "crossing" ? 'style="background:var(--ink)"' : ""}></i>
+      <div><div>$${esc(w.sym)}</div><div class="sub">${esc(w.lp)} · ${w.b5 || 0} buys/5m · ${w.n} matched</div></div>
+      <div class="spk">${spark(w.series)}</div>
+      <div><span class="sb"><i style="width:${Math.round((w.share || 0) * 100)}%"></i><b style="left:${Math.round((D.threshold || .5) * 100)}%"></b></span><div class="sub" style="margin-top:6px">${pct(w.share)}${w.prev !== null && w.share !== null ? (w.share > w.prev ? " ↑" : w.share < w.prev ? " ↓" : "") : ""}</div></div>
+      <div class="r"><span class="st ${esc(w.status)}">${esc(w.status)}</span></div></div>`).join("") : '<div class="lrow" style="grid-template-columns:1fr"><span class="faint">nothing hot enough to watch right now.</span></div>');
+  $$("#wl .lrow[data-m]").forEach(r => r.onclick = () => readCoin(r.dataset.m, r.dataset.s));
+  // log
+  const cls = { cross: "acc", heat: "", watch: "mut", drop: "faint" }, lbl = { cross: "cross", heat: "heat", watch: "watch", drop: "drop" };
+  $("#log").innerHTML = (D.feed || []).slice(0, 40).map(e => `<div><span class="t">${hhmm(e.t)}</span><span class="${cls[e.k] || ""}">${lbl[e.k] || e.k}</span><span><b>$${esc(e.sym)}</b> <span class="mut">${esc(e.lp || "")}</span> · ${esc(e.msg)}</span></div>`).join("") || '<div><span class="t"></span><span class="faint">…</span><span class="faint">the log fills as the engine runs.</span></div>';
+  // signals
+  const sg = D.signals || [];
+  $("#fA").textContent = t.crossAll ?? sg.length; $("#fB").textContent = t.measured ?? 0; $("#fC").textContent = t.hit1h === null || t.hit1h === undefined ? "–" : pct(t.hit1h); $("#fD").textContent = t.med1h === null || t.med1h === undefined ? "–" : signed(t.med1h);
+  const o = (s, k) => { const v = (s.out || {})[k]; return typeof v === "number" ? `<span class="${v > 0 ? "up" : v < 0 ? "dn" : ""}">${signed(v)}</span>` : v === null ? '<span class="faint">n/a</span>' : '<span class="faint">…</span>'; };
+  $("#sigt").innerHTML = `<div class="sr head"><span class="hide">when</span><span>coin</span><span class="hide">app share</span><span class="r">+15m</span><span class="r">+1h</span><span class="r hide">+4h</span><span class="r hide">engine · preview</span></div>` +
+    (sg.length ? sg.slice(0, 30).map(s => `<div class="sr"><span class="hide mut">${new Date(s.t).toISOString().slice(5, 16).replace("T", " ")}</span><span>$${esc(s.sym)} <span class="sub mut">${esc(s.lp)}</span></span><span class="hide">${pct(s.prev)} → <span class="acc">${pct(s.share)}</span></span><span class="r">${o(s, "m15")}</span><span class="r">${o(s, "h1")}</span><span class="r hide">${o(s, "h4")}</span><span class="r hide mut">${s.engine ? s.engine.sol : 0.5} SOL</span></div>`).join("")
+      : `<div class="empty">no crossovers logged yet. the log starts at launch and keeps every signal, good or bad.</div>`);
+}
+async function loadData() {
+  const tries = web ? [["/api/data", "api"], [RAW("flow-data/data.json"), "github"]] : [[RAW("flow-data/data.json"), "github"]];
+  for (const [u, src] of tries) {
+    try { const r = await fetch(u, { cache: "no-store" }); if (!r.ok) continue; const j = await r.json(); if (j && j.updated) { render(j, src); return; } } catch (e) {}
+  }
+  if (SNAP && !DATA) render(Object.assign({}, SNAP, { updated: Date.now() - 90e3 }), "preview");
+}
+loadData(); setInterval(loadData, 30e3);
+
+// ---------- top bar + active nav ----------
+const secs = $$("section.sess");
+addEventListener("scroll", () => { $("#top").classList.toggle("solid", scrollY > 10);
+  const cur = secs.filter(s => s.getBoundingClientRect().top < innerHeight * .4).pop();
+  $$(".nav a").forEach(a => a.classList.toggle("on", !!cur && a.getAttribute("href") === "#" + cur.id)); }, { passive: true });
+</script>
+</body></html>

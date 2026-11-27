@@ -1,0 +1,17 @@
+{
+ "ticker": "$CROSSOVER",
+ "theme": "lime",
+ "user": "anon",
+ "host": "crossover",
+ "object": "phone",
+ "command": "hits the apps",
+ "sub": "buys the moment a coin crosses from the terminals to the apps.",
+ "launch": {
+  "cmd": "crossover watch --apps",
+  "lines": [
+   "20 apps + terminals mapped",
+   "flow reader on",
+   "signal log open"
+  ]
+ }
+}

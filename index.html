@@ -1,0 +1,1088 @@
+<!doctype html>
+<html lang="en" data-theme="lime">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CROSSOVER — buys when it hits the apps</title>
+<meta name="description" content="Reads which buys come from pro terminals and which come from consumer apps, and buys the moment a coin crosses over to the apps.">
+<meta name="theme-color" content="#0d0e0b">
+<meta property="og:title" content="CROSSOVER — buys when it hits the apps"><meta property="og:description" content="Every buy leaves a fingerprint: a pro terminal or a consumer app. CROSSOVER reads them live and buys the moment a coin crosses over to the apps.">
+<meta property="og:type" content="website"><meta property="og:image" content="/og.png">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="/og.png">
+<link rel="icon" href="/fav.png"><link rel="apple-touch-icon" href="/fav.png">
+<link rel="preload" href="/fonts/geist-400.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+/* ===== termkit site system ===== */
+@font-face{font-family:"Geist Mono";font-weight:400;font-display:swap;src:url(/fonts/geist-400.woff2) format("woff2")}
+@font-face{font-family:"Geist Mono";font-weight:500;font-display:swap;src:url(/fonts/geist-500.woff2) format("woff2")}
+@font-face{font-family:"Geist Mono";font-weight:600;font-display:swap;src:url(/fonts/geist-600.woff2) format("woff2")}
+@font-face{font-family:"Geist Mono";font-weight:700;font-display:swap;src:url(/fonts/geist-700.woff2) format("woff2")}
+:root{
+  --bg:#f0e7d8; --paper:#f8f3ea; --ink:#2b2a26; --muted:#8b8474; --faint:#b3a993; --line:#3a372f; --hair:#d9d0be;
+  --shadow:#d6ccb8; --accent:#2f9e4f; --red:#c9452e; --glow:none;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; --pixel:"Silkscreen",var(--mono);
+  --w:1060px; --r:2px;
+}
+[data-theme=phosphor]{ --bg:#050806; --paper:#0b120d; --ink:#d6ffe2; --muted:#5d8a6b; --faint:#3a5a44; --line:#24543a; --hair:#14261b;
+  --shadow:#020302; --accent:#4cf28d; --red:#ff3b30; --glow:0 0 .4em color-mix(in srgb,var(--accent) 70%,transparent); }
+[data-theme=graphite]{ --bg:#131210; --paper:#1a1916; --ink:#efe7d8; --muted:#6f6a60; --faint:#4a463f; --line:#3a362f; --hair:#26241f;
+  --shadow:#0a0908; --accent:#efe7d8; --red:#e0533d; }
+[data-theme=lime]{ --bg:#0d0e0b; --paper:#14160f; --ink:#eceee3; --muted:#7f8475; --faint:#4b5043; --line:#353a2c; --hair:#22261c;
+  --shadow:#060705; --accent:#c6f135; --red:#ff5b4d; --term:#9aa08e; --glow:none;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace; }
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.6 var(--mono);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.4;
+  background-image:radial-gradient(color-mix(in srgb,var(--ink) 9%,transparent) .7px,transparent 1px);background-size:4px 4px}
+[hidden]{display:none!important}
+a{color:inherit} ::selection{background:var(--accent);color:var(--bg)}
+.wrap{position:relative;z-index:1;max-width:var(--w);margin:0 auto;padding:0 24px}
+.mut{color:var(--muted)} .acc{color:var(--accent);text-shadow:var(--glow)} .red{color:var(--red)}
+#bgtape{position:fixed;left:0;right:0;bottom:6vh;width:100%;height:140px;pointer-events:none;z-index:0;opacity:.55}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid transparent;transition:border-color .2s}
+.top.solid{border-bottom-color:var(--hair)}
+.top .wrap{display:flex;align-items:center;gap:28px;height:62px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;text-decoration:none;font-size:15px}
+.brand canvas{width:26px;height:26px;image-rendering:pixelated}
+.nav{display:flex;gap:20px;margin:0 auto;font-size:12.5px}
+.nav a{color:var(--muted);text-decoration:none;padding:6px 0;border-bottom:2px solid transparent}
+.nav a:hover{color:var(--ink)} .nav a.on{color:var(--ink);border-bottom-color:var(--accent)}
+
+/* buttons, chips, tags */
+.btn{display:inline-flex;align-items:center;gap:.5em;font:500 13px var(--mono);color:var(--ink);background:var(--paper);border:1.5px solid var(--line);border-radius:var(--r);
+  padding:.62em 1.1em;box-shadow:3px 3px 0 var(--shadow);cursor:pointer;text-decoration:none;transition:transform .12s,box-shadow .12s}
+.btn:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--shadow)} .btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--shadow)}
+.btn.pri{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+[data-theme=phosphor] .btn.pri{background:var(--accent);border-color:var(--accent);box-shadow:3px 3px 0 var(--shadow),var(--glow)}
+[data-theme=lime] .btn.pri{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.chip{display:inline-block;font-size:12px;padding:.18em .6em;color:var(--muted);border:1px solid transparent;cursor:pointer;background:none;font-family:var(--mono)}
+.chip.on{background:var(--accent);color:var(--bg)} .chip:not(.on):hover{border-color:var(--hair);color:var(--ink)}
+.tag{display:inline-block;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);border:1px solid var(--hair);padding:.15em .55em}
+.lamp{display:inline-flex;align-items:center;gap:.5em;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.lamp::before{content:"";width:7px;height:7px;background:var(--faint)} .lamp.live::before{background:var(--accent);box-shadow:var(--glow);animation:blink 1.6s steps(1) infinite}
+.cur{display:inline-block;width:.55em;height:1.05em;background:var(--accent);vertical-align:-.17em;margin-left:.1em;box-shadow:var(--glow);animation:blink 1.1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* hero */
+.hero{position:relative;overflow:hidden;padding:92px 0 70px}
+.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center}
+.prompt{font-size:15px;color:var(--muted);min-height:1.6em}
+.prompt .cmd{color:var(--ink)}
+.hero h1{font-size:clamp(38px,5.4vw,62px);line-height:1.04;font-weight:400;letter-spacing:-.035em;margin:22px 0 20px}
+.hero h1 b{font-weight:700}
+.hero .lede{color:var(--muted);max-width:44ch;font-size:15.5px}
+.ctas{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px}
+.ca{display:flex;align-items:center;gap:12px;margin-top:22px;font-size:12px;color:var(--muted)}
+.ca code{color:var(--ink);background:var(--paper);border:1px dashed var(--hair);padding:.3em .6em;font-family:var(--mono);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hero-vis{position:relative;height:440px}
+.hero-vis canvas.obj{position:absolute;inset:0;width:100%;height:100%}
+.hero-vis .term{position:absolute;right:0;bottom:12px;width:min(330px,80%)}
+
+/* ticker strip */
+.strip{position:relative;z-index:1;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);overflow:hidden;font-size:12.5px;white-space:nowrap;background:color-mix(in srgb,var(--paper) 50%,transparent)}
+.strip .run{display:inline-flex;gap:40px;padding:11px 0;animation:run 60s linear infinite}
+@keyframes run{to{transform:translateX(-50%)}}
+
+/* sections */
+section.s{position:relative;z-index:1;padding:110px 0 30px}
+.eyebrow{display:flex;align-items:center;gap:10px;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.eyebrow b{color:var(--accent);font-weight:500} .eyebrow i{flex:0 0 60px;height:1px;background:var(--hair)}
+h2{font-size:clamp(30px,4vw,46px);font-weight:500;letter-spacing:-.03em;line-height:1.1;margin:18px 0 14px}
+h2 .pr{color:var(--faint);font-weight:400;margin-right:.35em}
+.lede{color:var(--muted);max-width:52ch}
+.rule{height:1px;background:var(--hair);margin:90px 0 0}
+
+/* card + terminal */
+.card{background:var(--paper);border:1.5px solid var(--line);border-radius:var(--r);box-shadow:6px 6px 0 var(--shadow);padding:18px;transition:transform .15s,box-shadow .15s}
+a.card,.card.lift{text-decoration:none;color:inherit;display:block}
+a.card:hover,.card.lift:hover{transform:translate(-2px,-3px);box-shadow:8px 9px 0 var(--shadow)}
+.term{background:var(--paper);border:1.5px solid var(--line);border-radius:var(--r);box-shadow:6px 6px 0 var(--shadow);font-size:13px}
+.term .bar{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1.5px solid var(--line);font-size:11px;color:var(--muted)}
+.term .bar i{width:9px;height:9px;border:1.5px solid var(--line);border-radius:50%}
+.term .bar span{margin-left:auto}
+.term .body{padding:14px 16px;line-height:1.9;min-height:3em}
+.term .ln{opacity:.18;transition:opacity .25s} .term .ln.on{opacity:1}
+.term .ln .ok{color:var(--accent);text-shadow:var(--glow)}
+.grid{display:grid;gap:22px}
+.g2{grid-template-columns:1fr 1fr} .g3{grid-template-columns:repeat(3,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+
+/* pinned step sequence */
+.pin{height:300vh} .pin .stick{position:sticky;top:90px}
+.steps{display:grid;grid-template-columns:1fr 1.15fr;gap:40px;margin-top:40px;align-items:start}
+.steplist li{list-style:none;display:flex;gap:14px;padding:14px 0;border-bottom:1px dashed var(--hair);color:var(--faint);transition:color .2s}
+.steplist li b{color:inherit;font-weight:500;width:2em} .steplist li.on{color:var(--ink)} .steplist li.on b{color:var(--accent)}
+.meter{font-size:12px;color:var(--muted);margin-top:14px}
+
+/* fee split */
+.split{display:flex;height:34px;border:1.5px solid var(--line);margin:30px 0 18px}
+.split div{border-right:1.5px solid var(--line);background:repeating-linear-gradient(90deg,var(--c) 0 6px,transparent 6px 8px)}
+.split div:last-child{border-right:0}
+.rows div{display:flex;gap:16px;padding:7px 0;border-bottom:1px dashed var(--hair)} .rows b{width:3em}
+
+/* stat */
+.stat .k{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.stat .v{font-size:30px;font-weight:500;letter-spacing:-.02em;margin-top:6px}
+
+/* cells (supply / holders grid) */
+.cells{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}
+.cells i{aspect-ratio:1;border:1px dashed var(--hair)} .cells i.f{background:var(--faint);border-color:var(--faint)} .cells i.you{background:var(--accent);border-color:var(--accent)}
+
+/* log */
+.log{height:320px;overflow:hidden;font-size:12.5px;line-height:2;-webkit-mask:linear-gradient(#000 70%,transparent)}
+.log div{display:grid;grid-template-columns:76px 74px 1fr auto;gap:12px;animation:in .35s ease}
+.log .t{color:var(--faint)} .log a{color:var(--muted);text-decoration:none} .log a:hover{color:var(--accent)}
+@keyframes in{from{opacity:0;transform:translateY(-6px)}}
+
+/* man-page faq */
+.man details{border-bottom:1px dashed var(--hair)}
+.man summary{list-style:none;cursor:pointer;padding:18px 0;display:flex;gap:14px;font-weight:500}
+.man summary::-webkit-details-marker{display:none}
+.man summary::before{content:"+";color:var(--accent);width:1em} .man details[open] summary::before{content:"−"}
+.man details p{color:var(--muted);padding:0 0 20px 2.1em;max-width:62ch}
+
+/* footer */
+footer{position:relative;z-index:1;padding:120px 0 60px}
+footer .big{font-size:clamp(34px,6vw,76px);letter-spacing:-.04em;line-height:1}
+footer .fine{display:flex;gap:24px;flex-wrap:wrap;margin-top:50px;font-size:12px;color:var(--muted);border-top:1px solid var(--hair);padding-top:20px}
+
+.reveal{opacity:0;transform:translateY(14px);transition:opacity .6s,transform .6s} .reveal.in{opacity:1;transform:none}
+@media (max-width:860px){
+  .nav{display:none} .top .btn{margin-left:auto} .hero{padding-top:56px} .hero .wrap,.steps,.g2,.g3{grid-template-columns:1fr} .g4{grid-template-columns:1fr 1fr}
+  .hero-vis{height:330px} .pin{height:auto} .pin .stick{position:static} .steplist li{color:var(--ink)} .term .ln{opacity:1}
+  .log div{grid-template-columns:60px 64px 1fr} .log div a{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important} .reveal{opacity:1;transform:none} .term .ln{opacity:1}}
+</style>
+<style>
+/* ===== session layout: the page is one terminal session. sticky command rail left, output right. ===== */
+:root{--w:1200px}
+body::before{opacity:.22}
+.top{background:color-mix(in srgb,var(--bg) 82%,transparent)} .top .wrap{height:64px}
+.top .live{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);margin-left:auto}
+.nav{margin:0 0 0 40px}
+.dot{width:7px;height:7px;background:var(--faint);display:inline-block;flex:none}
+.dot.on{background:var(--accent);box-shadow:var(--glow);animation:blink 1.6s steps(1) infinite} .dot.red{background:var(--red)} .dot.term{background:var(--term)} .dot.acc{background:var(--accent)}
+.k{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.hint{font-size:12px;color:var(--muted);min-height:1.6em;margin-top:10px} .hint.err{color:var(--red)}
+.tm{color:var(--term)} .faint{color:var(--faint)}
+/* hero */
+.hero2{position:relative;min-height:calc(100svh - 64px);display:flex;align-items:center;overflow:hidden;padding:40px 0 90px}
+.hero2 canvas.bg{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.hero2 .wrap{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:40px;align-items:center;width:100%}
+.hero2 h1{font-size:clamp(42px,5.6vw,80px);font-weight:400;letter-spacing:-.055em;line-height:.94;margin:28px 0 26px}
+.hero2 h1 b{font-weight:700;color:var(--accent)}
+.hero2 .lede{color:var(--muted);font-size:16px;max-width:44ch;line-height:1.65}
+.hero2 .lede b{color:var(--ink);font-weight:500}
+.inbar{display:flex;border:1.5px solid var(--line);background:var(--paper);height:58px;max-width:580px;box-shadow:6px 6px 0 var(--shadow);transition:border-color .15s}
+.inbar:focus-within{border-color:var(--accent)}
+.inbar input{flex:1;background:none;border:0;padding:0 18px;font:14px var(--mono);color:var(--ink);outline:none;min-width:0}
+.inbar input::placeholder{color:var(--faint)}
+.inbar button{border:0;background:var(--accent);color:var(--bg);font:600 13.5px var(--mono);padding:0 24px;cursor:pointer;display:flex;align-items:center;gap:10px;box-shadow:var(--glow)}
+.inbar button:disabled{opacity:.6;cursor:wait}
+.hero2 .inbar{margin-top:36px}
+.try{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin-top:16px;font-size:12px;color:var(--muted);min-height:26px}
+.try .chip{border:1px solid var(--hair);color:var(--ink)} .try .chip small{color:var(--muted);margin-left:.45em} .try .chip small.acc{color:var(--accent)}
+.liveline{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted);margin-top:30px;padding-top:18px;border-top:1px solid var(--hair);max-width:580px}
+.liveline b{color:var(--ink);font-weight:500}
+.statusrow{position:absolute;left:0;right:0;bottom:26px;z-index:1}
+.statusrow .wrap{display:flex !important;gap:28px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.statusrow span{display:inline-flex;align-items:center;gap:8px}
+.statusrow .ca{margin:0 0 0 auto;font-size:11px;letter-spacing:.04em;text-transform:none}
+/* sessions */
+.sess{position:relative;z-index:1;border-top:1px solid var(--hair)}
+.sess>.wrap{display:grid;grid-template-columns:300px minmax(0,1fr);gap:72px;padding-top:120px;padding-bottom:120px}
+.rail{position:sticky;top:110px;align-self:start}
+.rail .n{font-size:11px;letter-spacing:.16em;color:var(--faint);margin-bottom:14px}
+.rail .cmd{font-size:13px;color:var(--muted);white-space:nowrap} .rail .cmd b{color:var(--ink);font-weight:500}
+.rail h2{font-size:clamp(28px,3vw,38px);font-weight:500;letter-spacing:-.035em;line-height:1.08;margin:16px 0}
+.rail p{color:var(--muted);font-size:14px;line-height:1.7}
+.rail .ctl{margin-top:26px;padding-top:20px;border-top:1px solid var(--hair);display:flex;flex-direction:column;gap:14px}
+.toggles{display:flex;flex-wrap:wrap;gap:6px} .toggles .chip{border:1px solid var(--hair)}
+.out{min-width:0}
+/* story */
+.story{height:340vh}
+.story>.wrap{position:sticky;top:64px;height:calc(100svh - 64px);padding-top:0;padding-bottom:0;align-items:center}
+.story .rail{position:static}
+.beats{margin-top:26px;display:flex;flex-direction:column;gap:2px}
+.beats li{list-style:none;display:grid;grid-template-columns:2.2em 1fr;padding:10px 0;color:var(--faint);font-size:13.5px;line-height:1.55;transition:color .25s}
+.beats li b{font-weight:500} .beats li.done{color:var(--muted)} .beats li.on{color:var(--ink)} .beats li.on b{color:var(--accent);text-shadow:var(--glow)}
+.storybox{border:1px solid var(--hair);background:color-mix(in srgb,var(--paper) 55%,transparent);padding:18px 20px 16px}
+.storybox .hd{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:14px} .storybox .hd b{color:var(--ink);font-weight:500}
+#storyCv{display:block;width:100%;image-rendering:pixelated}
+/* reader */
+.result{margin-top:30px}
+.result .empty{padding:44px 0;color:var(--faint);font-size:13px;line-height:1.9;border-top:1px solid var(--hair)}
+.verdict{display:flex;align-items:flex-end;gap:28px;padding:26px 0 24px;border-top:1px solid var(--hair);flex-wrap:wrap}
+.verdict .big{font-size:clamp(56px,7vw,92px);font-weight:600;letter-spacing:-.06em;line-height:.86}
+.verdict .vt{font-size:15px;line-height:1.6;padding-bottom:6px} .verdict .vt span{color:var(--muted)}
+.verdict .act{margin-left:auto;display:flex;gap:10px;padding-bottom:6px}
+.splitbar{display:flex;height:30px;border:1.5px solid var(--line);margin:4px 0 10px}
+.splitbar div{min-width:0;border-right:1.5px solid var(--line);background:repeating-linear-gradient(90deg,var(--c) 0 6px,transparent 6px 8px)} .splitbar div:last-child{border-right:0}
+.legend{display:flex;gap:22px;flex-wrap:wrap;font-size:12px;color:var(--muted)} .legend span{display:inline-flex;align-items:center;gap:8px} .legend b{color:var(--ink);font-weight:500}
+.chartbox{margin-top:30px;border:1px solid var(--hair);padding:16px 18px 12px;background:color-mix(in srgb,var(--paper) 50%,transparent)}
+.chartbox .hd{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:10px}
+.chartbox canvas{display:block;width:100%;image-rendering:pixelated}
+.cols2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:40px;margin-top:34px}
+.lrow{display:grid;grid-template-columns:14px minmax(0,1.2fr) minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--hair);font-size:13px}
+.lrow .sub{color:var(--muted);font-size:11.5px} .lrow .r{text-align:right;white-space:nowrap}
+.hl{border-top:1px solid var(--hair);margin-top:12px}
+.tape .tr{display:grid;grid-template-columns:62px minmax(0,1fr) 70px 54px;gap:12px;padding:8px 0;border-bottom:1px solid color-mix(in srgb,var(--hair) 70%,transparent);font-size:12.5px}
+.tape .tr .t{color:var(--faint)} .tape .tr a{color:var(--muted);text-decoration:none;text-align:right} .tape .tr a:hover{color:var(--accent)}
+.tag2{display:inline-block;font-size:11px;padding:.05em .5em;border:1px solid var(--hair);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.tag2.app{border-color:color-mix(in srgb,var(--accent) 55%,transparent);color:var(--accent)} .tag2.pro{color:var(--term)} .tag2.un{color:var(--faint)}
+.note{margin-top:26px;font-size:12px;color:var(--muted);line-height:1.7;max-width:70ch}
+.prog{height:2px;background:var(--hair);margin-top:12px;max-width:580px;overflow:hidden} .prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+/* share bar + spark */
+.sb{position:relative;display:block;height:10px;background:repeating-linear-gradient(90deg,var(--term) 0 2px,transparent 2px 4px);opacity:.95}
+.sb i{position:absolute;left:0;top:0;bottom:0;background:var(--accent)} .sb b{position:absolute;top:-4px;bottom:-4px;width:1px;background:var(--ink);left:50%}
+.spark{display:block;width:100%;height:28px}
+/* live */
+.bigstats{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.bigstats>div{padding:22px 22px 24px 0} .bigstats>div+div{padding-left:22px;border-left:1px solid var(--hair)}
+.bigstats .v{font-size:clamp(30px,3.4vw,46px);font-weight:500;letter-spacing:-.04em;margin-top:10px;line-height:1}
+.feature{display:grid;grid-template-columns:auto 1fr auto;gap:8px 28px;align-items:end;padding:34px 0;border-bottom:1px solid var(--hair)}
+.feature .big{font-size:clamp(40px,5vw,68px);font-weight:600;letter-spacing:-.045em;line-height:.95}
+.feature .what{font-size:15px;line-height:1.6} .feature .what span{color:var(--muted)}
+.feature .side{font-size:12px;color:var(--muted);text-align:right;line-height:1.8}
+.feature.wait{display:block;color:var(--faint);font-size:13px}
+.wl .lrow{grid-template-columns:14px minmax(0,1fr) minmax(0,1.1fr) 110px 86px;cursor:pointer}
+.wl .lrow:hover{background:color-mix(in srgb,var(--paper) 60%,transparent)}
+.wl .head{cursor:default;color:var(--faint);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;padding:14px 0 10px} .wl .head:hover{background:none}
+.st{font-size:11px;letter-spacing:.06em;text-transform:uppercase} .st.crossed{color:var(--accent)} .st.crossing{color:var(--ink)} .st.pro-led{color:var(--term)} .st.thin{color:var(--faint)}
+.sub2{margin:44px 0 6px;display:flex;justify-content:space-between;align-items:baseline}
+.out .log{height:300px;margin-top:6px} .out .log div{grid-template-columns:70px 64px 1fr;border-bottom:1px solid color-mix(in srgb,var(--hair) 60%,transparent)}
+.out .log b{font-weight:500}
+/* signals */
+.facts{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.facts>div{padding:18px 18px 20px 0} .facts>div+div{padding-left:18px;border-left:1px solid var(--hair)} .facts .v{font-size:22px;margin-top:8px;letter-spacing:-.02em}
+.sigt .sr{display:grid;grid-template-columns:92px minmax(0,1.1fr) minmax(0,1fr) 64px 64px 64px 110px;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--hair);font-size:12.5px}
+.sigt .sr.head{color:var(--faint);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;padding:16px 0 10px}
+.sigt .sr .r{text-align:right} .up{color:var(--accent)} .dn{color:var(--red)}
+.sigt .empty{padding:36px 0;color:var(--faint);font-size:13px;line-height:1.9;border-bottom:1px solid var(--hair)}
+/* fingerprints */
+.fpcols{display:grid;grid-template-columns:1fr 1fr;gap:44px}
+.fp .lrow{grid-template-columns:14px minmax(0,1fr) auto} .fp h3{font-size:13px;font-weight:500;display:flex;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.fp .what{color:var(--muted);font-size:11.5px;margin-top:2px}
+/* token */
+.out .split{margin-top:0} .rows b{width:3.4em}
+.callout{display:flex;align-items:center;gap:24px;justify-content:space-between;margin-top:44px;padding:26px 28px;border:1px solid var(--line);background:color-mix(in srgb,var(--paper) 70%,transparent)}
+.callout p{font-size:15px;line-height:1.6;max-width:46ch} .callout p span{color:var(--muted)}
+.out .man summary{padding:20px 0}
+footer.f2{position:relative;z-index:1;border-top:1px solid var(--hair);padding:120px 0 50px;overflow:hidden}
+footer.f2 .big{font-size:clamp(40px,7.4vw,118px);letter-spacing:-.06em;line-height:.92;font-weight:400} footer.f2 .big b{font-weight:700;color:var(--accent)}
+footer.f2 .fine{display:flex;gap:24px;flex-wrap:wrap;margin-top:60px;font-size:12px;color:var(--muted);border-top:1px solid var(--hair);padding-top:20px}
+@media (max-width:1100px){ .nav a.x{display:none} }
+@media (max-width:980px){
+  .sess>.wrap{grid-template-columns:1fr;gap:34px;padding-top:84px;padding-bottom:84px} .rail{position:static}
+  .story{height:auto} .story>.wrap{position:static;height:auto;padding-top:84px;padding-bottom:84px}
+  .bigstats,.facts{grid-template-columns:1fr 1fr} .bigstats>div:nth-child(3),.facts>div:nth-child(3){padding-left:0;border-left:0}
+  .bigstats>div:nth-child(n+3),.facts>div:nth-child(n+3){border-top:1px solid var(--hair)}
+  .cols2,.fpcols{grid-template-columns:1fr}
+}
+@media (max-width:860px){
+  .hero2{min-height:0;padding:28px 0 130px} .hero2 .wrap{grid-template-columns:1fr;gap:0} .hero2 .vis{height:230px !important;order:-1} .hero2 h1{margin:20px 0}
+  .top .live{display:none} .top .btn{margin-left:auto}
+  .statusrow .wrap{flex-wrap:wrap;gap:8px 18px} .statusrow .ca{margin:0;width:100%}
+  .inbar button span{display:none} .prompt{font-size:13px}
+  .feature{grid-template-columns:1fr} .feature .side{text-align:left} .callout{flex-direction:column;align-items:flex-start}
+  .wl .lrow{grid-template-columns:14px minmax(0,1fr) 90px 70px} .wl .lrow .spk{display:none}
+  .sigt .sr{grid-template-columns:minmax(0,1fr) 74px 56px 56px} .sigt .sr .hide{display:none}
+  .tape .tr{grid-template-columns:52px minmax(0,1fr) 62px} .tape .tr a{display:none}
+  .verdict .act{margin-left:0} .rail .cmd{white-space:normal;word-break:break-word}
+}
+</style>
+</head>
+<body>
+
+<header class="top" id="top"><div class="wrap">
+  <a class="brand" href="#hero"><canvas id="logo"></canvas>crossover</a>
+  <nav class="nav"><a href="#story">how</a><a href="#tool">read</a><a href="#live">live</a><a href="#signals">signals</a><a class="x" href="#fp">list</a><a class="x" href="#token">token</a><a href="#faq">faq</a></nav>
+  <span class="live"><i class="dot" id="topDot"></i><span id="topLive">connecting…</span></span>
+  <a class="btn" id="buyTop" href="#token">buy</a>
+</div></header>
+
+<section class="hero2" id="hero">
+  <canvas class="bg" id="heroBg"></canvas>
+  <div class="wrap">
+    <div>
+      <div class="prompt"><span>anon@crossover ~ %</span> <span class="cmd" id="typed"></span><span class="cur"></span></div>
+      <h1>buys when it<br>hits <b>the apps.</b></h1>
+      <p class="lede">Every buy leaves a fingerprint: a <b>pro terminal</b> or a <b>consumer app</b>. CROSSOVER reads them live and buys the moment a coin crosses over to the apps, before the app wave lands.</p>
+      <div class="inbar"><input id="hIn" placeholder="paste a mint to read its flow" autocomplete="off" spellcheck="false" aria-label="mint"><button id="hGo">▶ <span>read flow</span></button></div>
+      <div class="hint" id="heroHint"></div>
+      <div class="try" id="tryHero"><span>or read a coin the engine is watching:</span><span class="mut">loading…</span></div>
+      <div class="liveline"><i class="dot" id="lineDot"></i><span id="liveline">connecting to the engine…</span></div>
+    </div>
+    <div class="vis" id="heroVis" style="height:560px"></div>
+  </div>
+  <div class="statusrow"><div class="wrap"><span><i class="dot" id="srDot"></i><span id="srText">flow reader: live</span></span><span><i class="dot term"></i>fingerprints: estimate</span><span><i class="dot"></i>engine buys: preview</span><span class="ca">ca <code id="ca">posted here and on X at launch</code> <button class="chip" id="copy" hidden>copy</button></span></div></div>
+</section>
+
+<section class="sess story" id="story"><div class="wrap">
+  <div class="rail">
+    <div class="n">01</div>
+    <div class="cmd">anon@crossover ~ % <b>crossover story</b></div>
+    <h2>the pros come first.</h2>
+    <p>A memecoin's first buyers sit in terminals and bots. The crowd comes later, from apps on their phones. CROSSOVER buys the switch.</p>
+    <ol class="beats" id="beats">
+      <li><b>01</b>A coin launches. Almost every buy comes from a terminal or a bot.</li>
+      <li><b>02</b>CROSSOVER fingerprints each buy: fee wallets, app programs, gas sponsors, tip routes.</li>
+      <li><b>03</b>The coin reaches the apps. pump.fun app, Fomo and Phantom buys start to stack.</li>
+      <li><b>04</b>App share passes 50% with net buying. That's the crossover. The engine buys.</li>
+    </ol>
+  </div>
+  <div class="out"><div class="storybox"><div class="hd"><span>minute <b id="minN">1</b> since launch</span><span class="tag">illustration</span></div><canvas id="storyCv"></canvas></div></div>
+</div></section>
+
+<section class="sess" id="tool"><div class="wrap">
+  <div class="rail">
+    <div class="n">02</div>
+    <div class="cmd">anon@crossover ~ % <b>crossover read</b> <span class="lamp live">live</span></div>
+    <h2>read any coin.</h2>
+    <p>Paste a mint from pump.fun or LaunchLab. CROSSOVER pulls its latest trades straight from Solana and splits every buy by where it came from.</p>
+    <div class="ctl"><div class="k">buys to read</div><div class="toggles" id="sizeT"><button class="chip" data-n="40">40</button><button class="chip on" data-n="60">60</button><button class="chip" data-n="100">100</button></div>
+      <p style="font-size:12px">More buys take longer on the free RPC. Nothing to connect, nothing to sign.</p></div>
+  </div>
+  <div class="out">
+    <div class="inbar" style="max-width:none;box-shadow:none"><input id="tIn" placeholder="paste a mint" autocomplete="off" spellcheck="false" aria-label="mint"><button id="tGo">▶ <span>read flow</span></button></div>
+    <div class="prog" id="prog" hidden><i></i></div>
+    <div class="hint" id="toolHint"></div>
+    <div class="result" id="result"><div class="empty">nothing read yet. paste a mint above, or pick a coin from the live list below.<br><span class="acc">crossover read --mint &lt;ca&gt;</span></div></div>
+  </div>
+</div></section>
+
+<section class="sess" id="live"><div class="wrap">
+  <div class="rail">
+    <div class="n">03</div>
+    <div class="cmd">anon@crossover ~ % <b>tail -f crossover.log</b></div>
+    <h2>the flow, live.</h2>
+    <p>The engine watches the hottest pump.fun and LaunchLab coins around the clock and reads their buys as they land. <span class="lamp" id="lamp">connecting</span></p>
+    <div class="ctl"><div class="k">the rule</div><p style="font-size:12.5px" id="ruleTxt">App share of matched buys passes 50% in a 10-minute window, up at least 10 points on the 10 minutes before, with more SOL buying than selling.</p></div>
+  </div>
+  <div class="out">
+    <div class="bigstats">
+      <div><div class="k">buys fingerprinted · 24h</div><div class="v" id="sA">–</div></div>
+      <div><div class="k">app share · 24h</div><div class="v acc" id="sB">–</div></div>
+      <div><div class="k">crossovers · 24h</div><div class="v" id="sC">–</div></div>
+      <div><div class="k">coins watched now</div><div class="v" id="sD">–</div></div>
+    </div>
+    <div class="feature wait" id="feature">the next crossover shows up here, big.</div>
+    <div class="sub2"><span class="k">watching now · tap a coin to read it</span><span class="k" id="upd"></span></div>
+    <div class="wl" id="wl"></div>
+    <div class="sub2"><span class="k">engine log</span><span class="k" id="srcTop"></span></div>
+    <div class="log" id="log"></div>
+  </div>
+</div></section>
+
+<section class="sess" id="signals"><div class="wrap">
+  <div class="rail">
+    <div class="n">04</div>
+    <div class="cmd">anon@crossover ~ % <b>crossover signals --since launch</b></div>
+    <h2>every call, kept.</h2>
+    <p>Each crossover is logged with the price at that moment, then checked 15 minutes, 1 hour and 4 hours later. Good calls and bad ones stay in the log.</p>
+  </div>
+  <div class="out">
+    <div class="facts">
+      <div><div class="k">crossovers logged</div><div class="v" id="fA">–</div></div>
+      <div><div class="k">measured at 1h</div><div class="v" id="fB">–</div></div>
+      <div><div class="k">up after 1h</div><div class="v" id="fC">–</div></div>
+      <div><div class="k">median at 1h</div><div class="v" id="fD">–</div></div>
+    </div>
+    <div class="sigt" id="sigt"></div>
+  </div>
+</div></section>
+
+<section class="sess" id="fp"><div class="wrap">
+  <div class="rail">
+    <div class="n">05</div>
+    <div class="cmd">anon@crossover ~ % <b>crossover fp --list</b></div>
+    <h2>how it tells them apart.</h2>
+    <p>Terminals and apps take their fee inside the same transaction you sign. Some apps even pay your gas from their own wallet. Those wallets and programs are the fingerprints.</p>
+    <div class="ctl"><p style="font-size:12.5px" id="fpCount"></p><a class="btn" id="fpLink" href="#" target="_blank" rel="noopener">fingerprints.json ↗</a></div>
+  </div>
+  <div class="out">
+    <div class="fpcols">
+      <div class="fp"><h3><span class="acc">apps</span><span class="mut" id="fpA"></span></h3><div id="fpApps"></div></div>
+      <div class="fp"><h3><span class="tm">terminals &amp; bots</span><span class="mut" id="fpP"></span></h3><div id="fpPro"></div></div>
+    </div>
+    <p class="note">This is an estimate. A buy with no known fingerprint is counted as unmatched and left out of the share: direct trades, custom bots and apps that aren't on the list yet. The list is open and grows. Addresses come from public on-chain research (DefiLlama fee adapters) and Helius' docs.</p>
+  </div>
+</div></section>
+
+<section class="sess" id="token"><div class="wrap">
+  <div class="rail">
+    <div class="n">06</div>
+    <div class="cmd">anon@crossover ~ % <b>crossover token</b></div>
+    <h2>fees feed the engine.</h2>
+    <p>Trading fees on $CROSSOVER fund the engine and buy back the token. Every $1.00 splits the same way.</p>
+    <div class="ctl"><div class="ctas" style="margin-top:0"><a class="btn pri" id="buy" href="#">buy on LaunchLab</a><a class="btn" id="xlink" href="#">follow on X</a></div></div>
+  </div>
+  <div class="out">
+    <div class="split"><div style="flex:50;--c:var(--accent)"></div><div style="flex:30;--c:var(--red)"></div><div style="flex:20;--c:var(--faint)"></div></div>
+    <div class="rows"><div><b class="acc">$.50</b>engine treasury: buys on every crossover <span class="tag">preview</span></div><div><b class="red">$.30</b>buyback + burn $CROSSOVER</div><div><b>$.20</b>RPC and data, so the reader stays fast and free</div></div>
+    <div class="facts" style="margin-top:44px">
+      <div><div class="k">ticker</div><div class="v">$CROSSOVER</div></div><div><div class="k">chain</div><div class="v">solana</div></div>
+      <div><div class="k">launchpad</div><div class="v">raydium launchlab</div></div><div><div class="k">supply</div><div class="v">1,000,000,000</div></div>
+    </div>
+    <div class="callout"><p>Every call is on the record. <span>Check the signal log before you buy: wins, losses and everything in between.</span></p><a class="btn pri" href="#signals">see the log</a></div>
+  </div>
+</div></section>
+
+<section class="sess" id="faq"><div class="wrap">
+  <div class="rail">
+    <div class="n">07</div>
+    <div class="cmd">anon@crossover ~ % <b>man crossover</b></div>
+    <h2>the fine print.</h2>
+    <p>What's live, what's preview, and what it will never ask you for.</p>
+  </div>
+  <div class="out"><div class="man">
+    <details open><summary>is this financial advice?</summary><p>No. CROSSOVER shows where a coin's buys come from. A crossover is a signal, not a promise, and the signal log shows the misses too.</p></details>
+    <details><summary>what's live and what's preview?</summary><p>Live: the fingerprint list, the reader, the engine watching coins around the clock, the crossover rule and the signal log with prices after 15 min, 1 h and 4 h. Preview: the engine's own buys and its treasury. The log shows what it would buy; it doesn't trade yet.</p></details>
+    <details><summary>how does it know a buy came from an app?</summary><p>Apps and terminals leave traces inside the transaction: a fee sent to their wallet, their own program, a sponsor paying the gas, or a tip to a fast sender. CROSSOVER matches every buy against an open list of those addresses. It's an estimate, and buys it can't match are left out of the share.</p></details>
+    <details><summary>why does app flow matter?</summary><p>App users arrive later and in bigger numbers. Pump.fun's app alone does tens of millions in daily volume and passed Fomo, the biggest social trading app. When a coin's buys switch from terminals to apps, the crowd has found it.</p></details>
+    <details><summary>do I need a wallet?</summary><p>No. Reading is free and needs nothing. Never paste a seed phrase or private key anywhere.</p></details>
+    <details><summary>will crossover DM me?</summary><p>Never. Anyone who does is not us.</p></details>
+  </div></div>
+</div></section>
+
+<footer class="f2"><div class="wrap">
+  <div class="big">buys when it<br>hits <b>the apps.</b><span class="cur"></span></div>
+  <div class="ctas" style="margin-top:40px"><a class="btn pri" href="#tool">read a coin</a><a class="btn" href="#live">watch the flow</a></div>
+  <div class="fine"><span>$CROSSOVER · solana · raydium launchlab</span><span>not financial advice</span><span>fingerprints are estimates</span><span id="cafoot"></span></div>
+</div></footer>
+
+<script>
+/* termkit.js: pixel objects, long shadow, LED text. Shared by graphics.html and the site. */
+const TK = (() => {
+  const THEMES = {
+    paper: { bg:"#f0e7d8", shadow:"#dcd2bf", ink:"#2b2a26", muted:"#8b8474", accent:"#2f9e4f", red:"#c9452e", card:"#f8f3ea", line:"#3a372f",
+      outline:"#2e2a23", body:"#ece2c9", hi:"#faf5e8", shade:"#cdbf9f", dark:"#a39372", screen:"#16211a", glare:"#24372b", glow:"#45e07f", led:"#45e07f", slot:"#4a4337", term:"#6b7a6e", glowBlur:0 },
+    phosphor: { bg:"#050806", shadow:"#020302", ink:"#d6ffe2", muted:"#5d8a6b", accent:"#4cf28d", red:"#ff3b30", card:"#0b120d", line:"#1f3b29",
+      outline:"#0d0f0c", body:"#e6dcc0", hi:"#f6f0de", shade:"#c4b693", dark:"#9a8a68", screen:"#0b1a10", glare:"#173323", glow:"#5cff9a", led:"#5cff9a", slot:"#3b352a", term:"#4d6b57", glowBlur:.9 },
+    graphite: { bg:"#131210", shadow:"#0a0908", ink:"#efe7d8", muted:"#6f6a60", accent:"#efe7d8", red:"#e0533d", card:"#1a1916", line:"#33302a",
+      outline:"#0a0908", body:"#ece4d3", hi:"#faf6ec", shade:"#c9bfa9", dark:"#9d927b", screen:"#1b1a17", glare:"#2b2925", glow:"#efe7d8", led:"#7fe0a0", slot:"#3d3a33", term:"#6f6a60", glowBlur:.5 },
+    // CROSSOVER: warm near-black, lime "app" accent, pale handset
+    lime: { bg:"#0d0e0b", shadow:"#060705", ink:"#eceee3", muted:"#7f8475", accent:"#c6f135", red:"#ff5b4d", card:"#14160f", line:"#353a2c",
+      outline:"#050604", body:"#e3e5d9", hi:"#f8f9f1", shade:"#bcbfb0", dark:"#8f9285", screen:"#0e110b", glare:"#20261a", glow:"#c6f135", led:"#c6f135", slot:"#3a3e33", term:"#6c7262", glowBlur:.45 },
+  };
+
+  // 3x5 pixel font (M, N, W wider). Rows top to bottom.
+  const FONT = {
+    A:["010","101","111","101","101"],B:["110","101","110","101","110"],C:["011","100","100","100","011"],D:["110","101","101","101","110"],
+    E:["111","100","110","100","111"],F:["111","100","110","100","100"],G:["011","100","101","101","011"],H:["101","101","111","101","101"],
+    I:["111","010","010","010","111"],J:["001","001","001","101","010"],K:["101","101","110","101","101"],L:["100","100","100","100","111"],
+    M:["10001","11011","10101","10001","10001"],N:["1001","1101","1011","1001","1001"],O:["010","101","101","101","010"],P:["110","101","110","100","100"],
+    Q:["010","101","101","110","011"],R:["110","101","110","101","101"],S:["011","100","010","001","110"],T:["111","010","010","010","010"],
+    U:["101","101","101","101","111"],V:["101","101","101","101","010"],W:["10001","10001","10101","11011","10001"],X:["101","101","010","101","101"],
+    Y:["101","101","010","010","010"],Z:["111","001","010","100","111"],
+    0:["111","101","101","101","111"],1:["010","110","010","010","111"],2:["110","001","010","100","111"],3:["110","001","010","001","110"],
+    4:["101","101","111","001","001"],5:["111","100","110","001","110"],6:["011","100","111","101","111"],7:["111","001","010","010","010"],
+    8:["111","101","111","101","111"],9:["111","101","111","001","110"]," ":["0","0","0","0","0"],"-":["000","000","111","000","000"],
+    ".":["0","0","0","0","1"],"+":["000","010","111","010","000"],"%":["101","001","010","100","101"],">":["100","010","001","010","100"],"_":["000","000","000","000","111"],
+  };
+  const glyph = ch => FONT[ch.toUpperCase()] || FONT[" "];
+  const textWidth = (s, k = 1) => [...s].reduce((w, ch, i) => w + glyph(ch)[0].length * k + (i ? k : 0), 0);
+
+  function Grid(w, h) {
+    const c = new Array(w * h).fill(null);
+    return {
+      w, h, c,
+      get(x, y) { return x < 0 || y < 0 || x >= w || y >= h ? null : c[y * w + x]; },
+      set(x, y, v) { if (x >= 0 && y >= 0 && x < w && y < h) c[y * w + x] = v; },
+      rect(x, y, rw, rh, v) { for (let j = 0; j < rh; j++) for (let i = 0; i < rw; i++) this.set(x + i, y + j, v); },
+      text(s, x, y, v, k = 1) {
+        let cx = x;
+        for (const ch of s) { const g = glyph(ch);
+          g.forEach((row, j) => [...row].forEach((b, i) => { if (b === "1") this.rect(cx + i * k, y + j * k, k, k, v); }));
+          cx += g[0].length * k + k; }
+      },
+      outline(v = "outline") { // 1-cell outline around everything that is filled
+        const add = [];
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++)
+          if (!this.get(x, y) && (this.get(x - 1, y) || this.get(x + 1, y) || this.get(x, y - 1) || this.get(x, y + 1))) add.push([x, y]);
+        add.forEach(([x, y]) => this.set(x, y, v));
+      },
+    };
+  }
+
+  // ---------- Objects. Each returns a Grid of palette keys. Build inside a 1-cell margin, then outline. ----------
+  const OBJECTS = {
+    computer({ ticker = "" } = {}) {
+      const t = ticker.replace(/^\$/, "").toUpperCase();
+      const k = t.length <= 4 ? 2 : 1;
+      const tw = textWidth(t, k);
+      const sw = Math.max(24, tw + 8);                    // screen width grows with the ticker
+      const sh = Math.max(16, Math.round(sw * .52));      // and keeps a CRT-ish ratio
+      const mw = sw + 10, mh = sh + 13;                   // monitor housing
+      const W = mw + 6, H = mh + 18, g = Grid(W, H);
+      const mx = 3, my = 1, sx = mx + 4, sy = my + 3;
+      // monitor housing
+      g.rect(mx, my, mw, mh, "body"); g.set(mx, my, null); g.set(mx + mw - 1, my, null);
+      g.rect(mx + 1, my + 1, mw - 2, 1, "hi"); g.rect(mx + 1, my + 1, 1, mh - 3, "hi");
+      g.rect(mx + mw - 2, my + 1, 1, mh - 2, "shade"); g.rect(mx + 1, my + mh - 2, mw - 2, 1, "shade");
+      // bezel + screen
+      g.rect(sx - 1, sy - 1, sw + 2, sh + 2, "shade"); g.rect(sx - 1, sy - 1, sw + 2, 1, "dark"); g.rect(sx - 1, sy - 1, 1, sh + 2, "dark");
+      g.rect(sx, sy, sw, sh, "screen");
+      [[sx, sy], [sx + sw - 1, sy], [sx, sy + sh - 1], [sx + sw - 1, sy + sh - 1]].forEach(([x, y]) => g.set(x, y, "shade"));
+      // screen content: ticker, then a prompt (big ticker) or a little bar chart (long ticker)
+      const th = 5 * k, ty = sy + Math.max(2, Math.floor((sh - th - 5) / 2));
+      g.text(t, sx + Math.floor((sw - tw) / 2), ty, "glow", k);
+      const by = sy + sh - 3;
+      if (k === 2) { g.set(sx + 3, by - 1, "glow"); g.set(sx + 4, by, "glow"); g.set(sx + 3, by + 1, "glow"); g.rect(sx + 6, by + 1, 3, 1, "glow"); }
+      else { [1, 2, 1, 3, 2, 3, 2, 4, 3, 4].forEach((b, i) => g.rect(sx + Math.floor((sw - 19) / 2) + i * 2, by + 2 - b, 1, b, i === 4 ? "red" : "glow")); }
+      // front panel
+      const py = my + mh - 5;
+      g.rect(mx + 4, py, 2, 1, "led"); g.set(mx + 7, py, "red");
+      const fw = Math.min(12, mw - 16); g.rect(mx + mw - 4 - fw, py, fw, 1, "slot"); g.rect(mx + mw - 4 - fw, py + 1, fw, 1, "hi");
+      // neck (3 rows so the outlines of monitor and keyboard stay separate)
+      const ny = my + mh, nx = mx + Math.floor(mw / 2) - 6;
+      g.rect(nx, ny, 12, 3, "shade"); g.rect(nx, ny, 12, 1, "dark");
+      // keyboard slab
+      const kx = 1, kw = W - 2, ky = ny + 3, kh = 10;
+      g.rect(kx, ky, kw, kh, "body"); g.set(kx, ky, null); g.set(kx + kw - 1, ky, null);
+      g.rect(kx + 1, ky + 1, kw - 2, 1, "hi"); g.rect(kx + 1, ky + kh - 1, kw - 2, 1, "shade");
+      const k0 = kx + 3 + ((kw - 6) % 2 ? 1 : 0), k1 = kx + kw - 3;
+      for (let x = k0; x < k1; x += 2) { g.set(x, ky + 3, "dark"); g.set(x, ky + 5, "dark"); }
+      const mid = kx + Math.floor(kw / 2);
+      for (let x = k0; x < k1; x += 2) if (x < mid - 9 || x > mid + 8) g.set(x, ky + 7, "dark");
+      g.rect(mid - 8, ky + 7, 16, 1, "dark");
+      g.outline();
+      return g;
+    },
+    // Example of a custom object: a framed token with a halo. Copy this pattern for new narratives.
+    frame({ ticker = "" } = {}) {
+      const g = Grid(30, 38), t = ticker.replace(/^\$/, "").toUpperCase().slice(0, 1);
+      g.rect(2, 8, 26, 28, "body"); g.rect(3, 9, 24, 1, "hi"); g.rect(3, 9, 1, 26, "hi"); g.rect(26, 9, 1, 26, "shade"); g.rect(3, 34, 24, 1, "shade");
+      g.rect(6, 12, 18, 20, "screen");
+      g.rect(10, 16, 10, 12, "shade"); g.rect(9, 17, 12, 10, "shade"); g.rect(11, 17, 8, 10, "body"); g.rect(10, 18, 10, 8, "body");
+      g.text(t, 14, 20, "dark");
+      g.outline();
+      // details drawn after the outline stay thin: a halo ring floating above
+      g.rect(11, 1, 8, 1, "hi"); g.rect(8, 2, 3, 1, "hi"); g.rect(19, 2, 3, 1, "hi"); g.set(7, 3, "hi"); g.set(22, 3, "shade");
+      g.rect(8, 4, 3, 1, "shade"); g.rect(19, 4, 3, 1, "shade"); g.rect(11, 5, 8, 1, "shade");
+      return g;
+    },
+    // CROSSOVER: a handset whose screen shows the cross. Terminal share falls, app share climbs through it, buy button lit.
+    phone({ press = false } = {}) {
+      const W = 32, H = 56, g = Grid(W, H);
+      const bx = 2, by = 1, bw = 28, bh = 54;
+      g.rect(bx, by, bw, bh, "body");
+      [[0, 0], [1, 0], [0, 1]].forEach(([i, j]) => { g.set(bx + i, by + j, null); g.set(bx + bw - 1 - i, by + j, null);
+        g.set(bx + i, by + bh - 1 - j, null); g.set(bx + bw - 1 - i, by + bh - 1 - j, null); });
+      g.rect(bx + 2, by + 1, bw - 4, 1, "hi"); g.rect(bx + 1, by + 2, 1, bh - 4, "hi");
+      g.rect(bx + bw - 2, by + 2, 1, bh - 4, "shade"); g.rect(bx + 2, by + bh - 2, bw - 4, 1, "shade");
+      g.rect(bx + bw, by + 11, 1, 7, "shade");                               // side button
+      g.rect(bx + 11, by + 3, 6, 1, "slot"); g.set(bx + 19, by + 3, "dark");  // speaker + camera
+      // screen
+      const sx = bx + 3, sy = by + 6, sw = bw - 6, sh = bh - 13;
+      g.rect(sx - 1, sy - 1, sw + 2, sh + 2, "shade"); g.rect(sx - 1, sy - 1, sw + 2, 1, "dark"); g.rect(sx - 1, sy - 1, 1, sh + 2, "dark");
+      g.rect(sx, sy, sw, sh, "screen");
+      g.rect(sx + 2, sy + 2, 4, 1, "term"); g.rect(sx + sw - 6, sy + 2, 3, 1, "term"); g.set(sx + sw - 3, sy + 2, "glare"); // status bar
+      // chart: the terminal line falls, the app line climbs through it
+      const c0 = sx + 2, c1 = sx + sw - 3, y0 = sy + 6, y1 = sy + 24, n = c1 - c0;
+      for (let x = c0; x <= c1; x += 2) g.set(x, y1 + 1, "glare");
+      const line = (f, v, thick) => { let prev = null;
+        for (let i = 0; i <= n; i++) { const y = Math.round(f(i / n)), x = c0 + i;
+          const a = prev === null ? y : Math.min(prev, y), b = prev === null ? y : Math.max(prev, y);
+          for (let yy = a; yy <= b; yy++) { g.set(x, yy, v); if (thick) g.set(x, yy + 1, v); }
+          prev = y; } };
+      line(t => y0 + 3 + (y1 - y0 - 7) * Math.pow(t, .85), "term", false);
+      line(t => y1 - 1 - (y1 - y0 - 1) * Math.pow(t, 1.7), "glow", true);
+      // amount field + buy button
+      g.rect(sx + 3, sy + 28, 10, 1, "term"); g.rect(sx + 3, sy + 30, 6, 1, "glare");
+      const bY = sy + sh - 10, bX = sx + 3, bW = sw - 6;
+      g.rect(bX, bY, bW, 7, press ? "hi" : "glow");
+      g.text("BUY", bX + Math.round((bW - textWidth("BUY")) / 2), bY + 1, "screen");
+      // home button
+      const hy = by + bh - 5; g.rect(bx + 12, hy, 4, 3, "shade"); g.rect(bx + 13, hy + 1, 2, 1, "body");
+      g.outline();
+      return g;
+    },
+  };
+
+  // ---------- Rendering ----------
+  function draw(ctx, grid, o) {
+    const th = typeof o.theme === "string" ? THEMES[o.theme] : o.theme;
+    const cell = o.cell, ox = Math.round(o.x), oy = Math.round(o.y);
+    if (o.shadow !== false) {
+      const len = o.shadowLen ?? 2000, dir = o.shadowDir ?? [1, 1];
+      const sil = document.createElement("canvas"); sil.width = grid.w * cell; sil.height = grid.h * cell;
+      const s = sil.getContext("2d"); s.fillStyle = o.shadowColor || th.shadow;
+      for (let y = 0; y < grid.h; y++) for (let x = 0; x < grid.w; x++) if (grid.get(x, y)) s.fillRect(x * cell, y * cell, cell, cell);
+      for (let i = 1; i <= len; i++) ctx.drawImage(sil, ox + dir[0] * i, oy + dir[1] * i);
+    }
+    for (let y = 0; y < grid.h; y++) for (let x = 0; x < grid.w; x++) {
+      const v = grid.get(x, y); if (!v) continue;
+      ctx.fillStyle = th[v] || v;
+      const glowing = (v === "glow" || v === "led") && th.glowBlur;
+      if (glowing) { ctx.shadowColor = th[v]; ctx.shadowBlur = cell * 2.2 * th.glowBlur; } else ctx.shadowBlur = 0;
+      ctx.fillRect(ox + x * cell, oy + y * cell, cell, cell);
+    }
+    ctx.shadowBlur = 0;
+    return { w: grid.w * cell, h: grid.h * cell };
+  }
+
+  // Big LED-matrix text (WIM-style). Square dots with a gap, optional glow.
+  function led(ctx, s, o) {
+    const k = o.cell, gap = o.gap ?? Math.max(1, Math.round(k * .18));
+    let cx = o.x;
+    ctx.fillStyle = o.color; ctx.shadowColor = o.color; ctx.shadowBlur = o.glow ? k * 1.4 : 0;
+    for (const ch of s.toUpperCase()) { const g = glyph(ch);
+      g.forEach((row, j) => [...row].forEach((b, i) => {
+        const sub = o.sub ?? 2; // each font pixel is drawn as sub×sub dots
+        if (b === "1") for (let a = 0; a < sub; a++) for (let c = 0; c < sub; c++)
+          ctx.fillRect(cx + (i * sub + c) * k, o.y + (j * sub + a) * k, k - gap, k - gap);
+        else if (o.dim) { ctx.save(); ctx.globalAlpha = .07; ctx.shadowBlur = 0;
+          for (let a = 0; a < sub; a++) for (let c = 0; c < sub; c++) ctx.fillRect(cx + (i * sub + c) * k, o.y + (j * sub + a) * k, k - gap, k - gap); ctx.restore(); }
+      }));
+      cx += (g[0].length + 1) * (o.sub ?? 2) * k; }
+    ctx.shadowBlur = 0;
+    return cx - o.x;
+  }
+
+  // Fit a canvas to an element at device pixel ratio and return a ctx in CSS pixels.
+  function canvasFor(el) {
+    const c = document.createElement("canvas"), r = el.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+    c.width = Math.round(r.width * d); c.height = Math.round(r.height * d);
+    c.style.cssText = "position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated";
+    el.prepend(c); const ctx = c.getContext("2d"); ctx.scale(d, d); ctx.imageSmoothingEnabled = false; return ctx;
+  }
+
+  return { THEMES, FONT, OBJECTS, Grid, draw, led, canvasFor, textWidth };
+})();
+if (typeof module !== "undefined") module.exports = TK;
+</script>
+<script>
+/* flow.js: CROSSOVER's shared reader. Used by the site (browser) and the engine (node).
+   classify(): one Solana transaction -> who bought/sold, how much SOL, and which app or terminal it came from.
+   summarize()/detect(): app share of classified buys and the crossover rule. */
+(function (root, make) { if (typeof module === "object" && module.exports) module.exports = make(); else root.FLOW = make(); })(this, function () {
+  const WSOL = "So11111111111111111111111111111111111111112";
+  const CAP = 2;            // one buy counts at most 2 SOL in the share, so a single whale can't flip it
+
+  function index(fp) {
+    const map = new Map(), byId = {};
+    for (const e of fp.entries || []) { byId[e.id] = e; for (const a of e.addresses || []) map.set(a, e); }
+    return { map, byId, entries: fp.entries || [], threshold: fp.threshold ?? 0.5 };
+  }
+
+  const amt = b => Number(b.uiTokenAmount.amount) / Math.pow(10, b.uiTokenAmount.decimals || 0);
+  function deltas(meta, mint) {
+    const d = new Map();
+    for (const b of meta.preTokenBalances || []) if (b.mint === mint && b.owner) d.set(b.owner, (d.get(b.owner) || 0) - amt(b));
+    for (const b of meta.postTokenBalances || []) if (b.mint === mint && b.owner) d.set(b.owner, (d.get(b.owner) || 0) + amt(b));
+    return d;
+  }
+
+  // tx = getTransaction result ({ encoding: "json", maxSupportedTransactionVersion: 0 })
+  function classify(tx, mint, IX) {
+    if (!tx || !tx.meta || tx.meta.err || !tx.transaction) return null;
+    const msg = tx.transaction.message, la = tx.meta.loadedAddresses || {};
+    const K = [].concat(msg.accountKeys || [], la.writable || [], la.readonly || []).map(k => typeof k === "string" ? k : k.pubkey);
+    const nSig = msg.header ? msg.header.numRequiredSignatures : 1;
+    const signers = new Set(K.slice(0, nSig));
+    const dm = deltas(tx.meta, mint);
+    let trader = null, tok = 0;
+    for (const [o, v] of dm) if (signers.has(o) && Math.abs(v) > Math.abs(tok)) { trader = o; tok = v; }
+    if (!trader || !tok) return null;                       // not a wallet trade on this mint
+    const i = K.indexOf(trader);
+    const lam = i >= 0 && tx.meta.preBalances[i] != null ? (tx.meta.postBalances[i] - tx.meta.preBalances[i]) / 1e9 : 0;
+    const ws = deltas(tx.meta, WSOL).get(trader) || 0;
+    const side = tok > 0 ? "buy" : "sell";
+    const sol = Math.max(0, side === "buy" ? -(lam + ws) : lam + ws);
+    // fingerprints: a strong match beats a weak one; an app and a terminal both matching = unreadable
+    let strong = null, weak = null, clash = false;
+    for (const k of K) {
+      const e = IX.map.get(k); if (!e) continue;
+      if (e.strength === "weak") { weak = weak || e; continue; }
+      if (strong && strong.kind !== e.kind) clash = true;
+      strong = strong || e;
+    }
+    const e = clash ? null : strong || weak;
+    return { sig: (tx.transaction.signatures || [])[0], t: (tx.blockTime || 0) * 1000, side, sol: Math.round(sol * 1e4) / 1e4,
+      wallet: trader, src: e ? e.id : null, kind: e ? e.kind : null, weak: !!(e && e.strength === "weak"), clash };
+  }
+
+  function summarize(trades, from, to) {
+    const s = { app: 0, pro: 0, nApp: 0, nPro: 0, nUn: 0, nBuy: 0, nSell: 0, buySol: 0, sellSol: 0, bySrc: {} };
+    for (const x of trades) {
+      if (x.t < from || x.t >= to) continue;
+      if (x.side === "sell") { s.nSell++; s.sellSol += x.sol; continue; }
+      s.nBuy++; s.buySol += x.sol;
+      const w = Math.min(CAP, x.sol || 0) || 0.01;
+      if (x.kind === "app") { s.app += w; s.nApp++; } else if (x.kind === "pro") { s.pro += w; s.nPro++; } else s.nUn++;
+      if (x.src) { const b = s.bySrc[x.src] = s.bySrc[x.src] || { n: 0, sol: 0 }; b.n++; b.sol += x.sol; }
+    }
+    const c = s.app + s.pro;
+    s.n = s.nApp + s.nPro;
+    s.share = c > 0 ? s.app / c : null;
+    s.net = s.buySol - s.sellSol;
+    s.cov = s.nBuy ? s.n / s.nBuy : 0;
+    return s;
+  }
+
+  // The crossover: app share passes the line from below, rising, with more SOL buying than selling.
+  const RULE = { window: 10 * 60e3, minN: 6, minPrev: 4, rise: 0.1 };
+  function detect(trades, now, th, rule) {
+    const R = Object.assign({}, RULE, rule || {}), W = R.window;
+    const cur = summarize(trades, now - W, now + 1), prev = summarize(trades, now - 2 * W, now - W);
+    const ok = cur.n >= R.minN && prev.n >= R.minPrev && cur.share !== null && prev.share !== null &&
+      cur.share >= th && prev.share < th && cur.share - prev.share >= R.rise && cur.net > 0;
+    return { ok, cur, prev };
+  }
+  function status(cur, prev, th) {
+    if (!cur || cur.n < 4 || cur.share === null) return "thin";
+    if (cur.share >= th) return "crossed";
+    if (prev && prev.share !== null && cur.share >= th - 0.15 && cur.share > prev.share) return "crossing";
+    return "pro-led";
+  }
+  // app share in a rolling window, sampled at n points ending at `end`
+  function series(trades, end, step, n, win) {
+    const out = [];
+    for (let i = n - 1; i >= 0; i--) { const t = end - i * step, s = summarize(trades, t - win, t); out.push(s.n >= 3 ? Math.round(s.share * 100) / 100 : null); }
+    return out;
+  }
+
+  // ---- RPC with failover across endpoints ----
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  function rpc(endpoints, opt = {}) {
+    let i = 0; const cool = new Map(); const st = { calls: 0, errors: 0, last: "" };
+    async function call(method, params) {
+      for (let tries = 0; tries < endpoints.length * 3; tries++) {
+        const ep = endpoints[i++ % endpoints.length];
+        if ((cool.get(ep) || 0) > Date.now()) { if (endpoints.every(e => (cool.get(e) || 0) > Date.now())) await sleep(1200); continue; }
+        st.calls++;
+        try {
+          const r = await fetch(ep, { method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }), signal: AbortSignal.timeout(opt.timeout || 15000) });
+          if (!r.ok) { st.errors++; st.last = ep.replace(/\?.*/, "") + " " + r.status; cool.set(ep, Date.now() + (r.status === 429 ? 3000 : 20000)); continue; }
+          const j = await r.json();
+          if (j.error) { st.errors++; st.last = String(j.error.message || "").slice(0, 80);
+            if (/rate|limit|too many|busy/i.test(j.error.message || "")) { cool.set(ep, Date.now() + 3000); continue; }
+            const err = new Error(j.error.message); err.rpc = true; throw err; }
+          st.ok = ep.replace(/\?.*/, "");
+          return j.result;
+        } catch (e) { if (e && e.rpc) throw e;
+          st.errors++; st.last = (e && e.message) || String(e); cool.set(ep, Date.now() + 8000); }
+      }
+      throw new Error("no rpc endpoint answered");
+    }
+    return { call, st };
+  }
+  async function pool(items, n, fn) { const out = new Array(items.length); let k = 0;
+    await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (k < items.length) { const i = k++; try { out[i] = await fn(items[i], i); } catch (e) { out[i] = null; } } }));
+    return out; }
+  const TXOPT = { encoding: "json", maxSupportedTransactionVersion: 0, commitment: "confirmed" };
+
+  return { WSOL, CAP, RULE, index, classify, summarize, detect, status, series, rpc, pool, sleep, TXOPT };
+});
+</script>
+<script>
+const CONFIG = {
+  ca: "",                                   // contract address, posted at launch
+  x: "https://x.com/",                      // X account
+  repo: "buzzlightyear163/crossover",       // GitHub repo (engine data + fingerprint list)
+  ticker: "$CROSSOVER", theme: document.documentElement.dataset.theme,
+};
+const FP_INLINE = {"_how_to_edit":"One entry per app or terminal. kind is \"app\" (consumer apps and wallets) or \"pro\" (terminals and trading bots). addresses = fee wallets, gas sponsors and the app's own programs: if any of them appears in a buy's transaction, the buy is counted for that entry. strength \"weak\" entries only count when nothing stronger matched. To add one: copy an entry, change id/name/kind, paste the addresses, save and push. The site and the engine both read this file.","updated":"2026-11-27","threshold":0.5,"entries":[{"id":"pumpapp","name":"pump.fun app","kind":"app","strength":"strong","addresses":["6Vo3245eszAb5wuqEMw8mGdbfRUdKbHhDHP5LcaGuTAB"],"what":"app program (mobile swaps are routed through it)","source":"DefiLlama dexs/pumpfun-app"},{"id":"fomo","name":"Fomo","kind":"app","strength":"strong","addresses":["R4rNJHaffSUotNmqSKNEfDcJE8A7zJUkaoM5Jkd7cYX","AgmLJBMDCqWynYnQiPCuj9ewsNNsBJXyzoUhD9LJzN51"],"what":"fee wallet + gas sponsor that pays for every user trade","source":"DefiLlama dexs/fomo"},{"id":"phantom","name":"Phantom","kind":"app","strength":"strong","addresses":["25mYnjJ2MXHZH6NvTTdA63JvjgRVcuiaj6MRiEQNs1Dq","9yj3zvLS3fDMqi1F8zhkaWfq8TZpZWHe6cz1Sgt7djXf","8psNvWTrdNTiVRNzAgsou9kETXNJm2SXZyaKuJraVRtf","CnmA6Zb8hLrG33AT4RTzKdGv1vKwRBKQQr8iNckvv8Yg","2rQZb9xqQGwoCMDkpabbzDB9wyPTjSPj9WNhJodTaRHm","9gnLg6NtVxaASvxtADLFKZ9s8yHft1jXb1Vu6gVKvh1J","wtpXRqKLdGc7vpReogsRugv6EFCw4HBHcxm8pFcR84a","D1NJy3Qq3RKBG29EDRj28ozbGwnhmM5yBUp8PonSYUnm"],"what":"swap fee wallets","source":"DefiLlama fees/phantom"},{"id":"metamask","name":"MetaMask","kind":"app","strength":"strong","addresses":["47YRE7eLAdYzvGqSH1XLg2o8xUtywk7sS5BKv1oR4Y7i","HbBHuvgWoChfztoqz2izLRF5mSoLKQXfU68kueBmhcmL","4cLUBQKZgCv2AqGXbh8ncGhrDRcicUe3WSDzjgPY2oTA","8ZCzZnSxhbZp2oBGYYUeXMwqHCsAweXdgvyqNrAzGHWV"],"what":"Solana swap fee wallets (extension + mobile)","source":"DefiLlama aggregators/metamask"},{"id":"moonshot","name":"Moonshot","kind":"app","strength":"strong","addresses":["5wkyL2FLEcyUUgc3UeGntHTAfWfzDrVuxMnaMm7792Gk"],"what":"service fee wallet","source":"DefiLlama dexs/moonshot-money"},{"id":"vector","name":"Vector","kind":"app","strength":"strong","addresses":["EvMii962PiDkygT6qHWVTDamadqhDyHu4Mco7aNfRsp8","5Arp4KGGXdobT8LxSBLRLUDYEa3rh77frgEYsvTHTYka","5W3rMZSgus2mQVb2dYA9qR8Z1YLzcu5fjBNm8P3wmoEw","GdZJRqonwzeWRneFVrniwU5PeQqJa7bB8G12qdQqhU1H","7etTJL5WnHidy4AD1JbwBo76BtPtnxAmRRbG7un6QjYX","66eUcZJT8BNQZoGiLGfv9yBts2uxWQxCy3UuBnDT5rG1","BtqgEzQDCH3JFjJ6hFRsQB7Aacg9zmV6yDR96vH5vyC5","s1gnrNn3b3zs1MCAGYzXsBn13v41HP9nq4JZZGpLESL","9ZeKZdYzVii2a22ajnXSkVrqkwkkyjWpkjT3oVyEqw46","8YihpEuQnMoRYgRPdWSPbVLXmP8Fwzzbr8YZCYY6Fmf1","9umoGVjHCM5mm4UTyjq9QstAvg2DxdhgdECBuqkjji6x"],"what":"fee wallets","source":"DefiLlama fees/vectorfun"},{"id":"axiom","name":"Axiom","kind":"pro","strength":"strong","addresses":["FLASHX8DrLbgeR8FcfNV1F5krxYcYMUdBkrP1EPBtxB9","AxiomRXZAq1Jgjj9pHmNqVP7Lhu67wLXZJZbaK87TTSk","AxiomRYAid8ZDhS1bJUAzEaNSr69aTWB9ATfdDLfUbnc","7LCZckF6XXGQ1hDY6HFXBKWAtiUgL9QY5vj1C4Bn1Qjj","4V65jvcDG9DSQioUVqVPiUcUY9v6sb6HKtMnsxSKEz5S","CeA3sPZfWWToFEBmw5n1Y93tnV66Vmp8LacLzsVprgxZ","AaG6of1gbj1pbDumvbSiTuJhRCRkkUNaWVxijSbWvTJW","7oi1L8U9MRu5zDz5syFahsiLUric47LzvJBQX6r827ws","9kPrgLggBJ69tx1czYAbp7fezuUmL337BsqQTKETUEhP","DKyUs1xXMDy8Z11zNsLnUg3dy9HZf6hYZidB6WodcaGy","4FobGn5ZWYquoJkxMzh2VUAWvV36xMgxQ3M7uG1pGGhd","76sxKrPtgoJHDJvxwFHqb3cAXWfRHFLe3VpKcLCAHSEf","H2cDR3EkJjtTKDQKk8SJS48du9mhsdzQhy8xJx5UMqQK","8m5GkL7nVy95G4YVUbs79z873oVKqg2afgKRmqxsiiRm","4kuG6NsAFJNwqEkac8GFDMMheCGKUPEbaRVHHyFHSwWz","8vFGAKdwpn4hk7kc1cBgfWZzpyW3MEMDATDzVZhddeQb","86Vh4XGLW2b6nvWbRyDs4ScgMXbuvRCHT7WbUT3RFxKG","DZfEurFKFtSbdWZsKSDTqpqsQgvXxmESpvRtXkAdgLwM","5L2QKqDn5ukJSWGyqR4RPvFvwnBabKWqAqMzH4heaQNB","DYVeNgXGLAhZdeLMMYnCw1nPnMxkBN7fJnNpHmizTrrF","Hbj6XdxX6eV4nfbYTseysibp4zZJtVRRPn2J3BhGRuK9","846ah7iBSu9ApuCyEhA5xpnjHHX7d4QJKetWLbwzmJZ8","5BqYhuD4q1YD3DMAYkc1FeTu9vqQVYYdfBAmkZjamyZg"],"what":"router program, fee + cashback wallets","source":"DefiLlama fees/axiom"},{"id":"padre","name":"Padre (Pump Terminal)","kind":"pro","strength":"strong","addresses":["J5XGHmzrRmnYWbmw45DbYkdZAU2bwERFZ11qCDXPvFB5","DoAsxPQgiyAxyaJNvpAAUb2ups6rbJRdYrCPyWxwRxBb"],"what":"fee + cashback wallets","source":"DefiLlama fees/trading-terminal"},{"id":"gmgn","name":"GMGN","kind":"pro","strength":"strong","addresses":["BB5dnY55FXS1e1NXqZDwCzgdYJdMCj3B92PU6Q5Fb6DT","7sHXjs1j7sDJGVSMSPjD1b4v3FD6uRSvRWfhRdfv5BiA","HeZVpHj9jLwTVtMMbzQRf6mLtFPkWNSg11o68qrbUBa3","ByRRgnZenY6W2sddo1VJzX9o4sMU4gPDUkcmgrpGBxRy","DXfkEGoo6WFsdL7x6gLZ7r6Hw2S6HrtrAQVPWYx2A1s9","3t9EKmRiAUcQUYzTZpNojzeGP1KBAVEEbDNmy6wECQpK","DymeoWc5WLNiQBaoLuxrxDnDRvLgGZ1QGsEoCAM7Jsrx","dBhdrmwBkRa66XxBuAK4WZeZnsZ6bHeHCCLXa3a8bTJ","6TxjC5wJzuuZgTtnTMipwwULEbMPx5JPW3QwWkdTGnrn"],"what":"fee wallets","source":"DefiLlama fees/gmgnai"},{"id":"photon","name":"Photon","kind":"pro","strength":"strong","addresses":["AVUCZyuT35YSuj4RH7fwiyPu82Djn2Hfg7y2ND2XcnZH"],"what":"fee wallet","source":"DefiLlama fees/photon"},{"id":"bloom","name":"Bloom","kind":"pro","strength":"strong","addresses":["b1oomGGqPKGD6errbyfbVMBuzSC8WtAAYo8MwNafWW1","7HeD6sLLqAnKVRuSfc1Ko3BSPMNKWgGTiWLKXJF31vKM"],"what":"program + fee wallet","source":"DefiLlama fees/bloom"},{"id":"trojan","name":"Trojan","kind":"pro","strength":"strong","addresses":["9yMwSPk9mrXSN7yDHUuZurAh1sjbJsfpUqjZ7SvVtdco","92Med3qeK7duC5iiYsHX38H2f2twJfRsSx93oNrza2VH","2jwHNxavSoMZMEDbT1eV9PcPt5dDcayCqM6MkgaPpmWQ","65gDv7pZQCZELsNpNYSFEBtNFpWZAbxmRFB6BGMqFkHH","BWgb8wR1FEGiu1jCDSKuHKf752W27b4iN6SvoNCiK4qp","8jgg7moFJkHyTtAv9M6RBSPMp2oXeXhuiUMKW8YbYCWn"],"what":"bot + terminal fee wallets","source":"DefiLlama dexs/trojan"},{"id":"bonkbot","name":"BonkBot","kind":"pro","strength":"strong","addresses":["ZG98FUCjb8mJ824Gbs6RsgVmr1FhXb2oNiJHa2dwmPd"],"what":"fee wallet","source":"DefiLlama fees/bonk-bot"},{"id":"telemetry","name":"Telemetry","kind":"pro","strength":"strong","addresses":["FBYmU5XbRgX2DV2i2SpPPpHpXmf6mdZS98wQChmUyMba"],"what":"fee wallet","source":"DefiLlama fees/telemetry"},{"id":"maestro","name":"Maestro","kind":"pro","strength":"strong","addresses":["MaestroUL88UBnZr3wfoN7hqmNWFi3ZYCGqZoJJHE36","FRMxAnZgkW58zbYcE7Bxqsg99VWpJh6sMP5xLzAWNabN"],"what":"fee wallets","source":"DefiLlama fees/maestro"},{"id":"nova","name":"Nova","kind":"pro","strength":"strong","addresses":["noVakKQGTTjpHARvecAUbVnc85AatCLm3ijDFk8JXZB"],"what":"fee wallet","source":"DefiLlama fees/nova"},{"id":"banana","name":"Banana Gun","kind":"pro","strength":"strong","addresses":["47hEzz83VFR23rLTEeVm9A7eFzjJwjvdupPPmX3cePqF","4BBNEVRgrxVKv9f7pMNE788XM1tt379X9vNjpDH2KCL7","8r2hZoDfk5hDWJ1sDujAi2Qr45ZyZw5EQxAXiMZWLKh2"],"what":"fee wallets","source":"DefiLlama fees/banana-gun-trading"},{"id":"mevx","name":"MevX","kind":"pro","strength":"strong","addresses":["3kxSQybWEeQZsMuNWMRJH4TxrhwoDwfv41TNMLRzFP5A","BS3CyJ9rRC4Tp8G7f86r6hGvuu3XdrVGNVpbNM9U5WRZ","4Lpvp1q69SHentfYcMBUrkgvppeEx6ovHCSYjg4UYXiq","4DGMLhJqTBAB9xs1FodvXrfbdo5YqPSfDRaK1KZFXd1V"],"what":"fee wallets","source":"DefiLlama fees/mevx"},{"id":"bullx","name":"BullX","kind":"pro","strength":"strong","addresses":["9RYJ3qr5eU5xAooqVcbmdeusjcViL5Nkiq7Gske3tiKq","F4hJ3Ee3c5UuaorKAMfELBjYCjiiLH75haZTKqTywRP3"],"what":"fee wallets (trading paused since June 2026)","source":"DefiLlama fees/bullx"},{"id":"sender","name":"Helius Sender tip","kind":"pro","strength":"weak","addresses":["4ACfpUFoaSD9bfPdeu6DBt89gB6ENTeHBXCAi87NhDEE","D2L6yPZ2FmmmTKPgzaMKdhu6EWZcTpLy1Vhx8uvZe7NZ","9bnz4RShgq1hAnLnZbP8kbgBg1kEmcJBYQq3gQbmnSta","5VY91ws6B2hMmBFRsXkoAAdsPHBJwRfBht4DXox3xkwn","2nyhqdwKcJZR2vcqCyrYsaPVdAnFoJjiksCXJ7hfEYgD","2q5pghRs6arqVjRvT5gfgWfWcHWmw1ZuCzphgd5KfWGJ","wyvPkWjVZz1M8fHQnMMCDTQDbkManefNNhweYk5WkcF","3KCKozbAaF75qEU33jtzozcJ29yJuaLJTy2jFdzUY8bT","4vieeGHPYPG2MmyPRcYjdiDmmhN3ww7hsFNap8pVN3Ey","4TQLFNWK8AovT1gFvda5jfw2oJeRMKEmw7aH6MGBJ3or"],"what":"tip accounts of a fast-landing sender that terminals pay for (Pine Analytics: Padre paid 52% of its tip SOL since Oct 21). Only counted when nothing stronger matched.","source":"Helius docs, Sender tip accounts"}]}, SNAP = {"v":1,"updated":0,"totals":{"buys24":0,"share24":null,"cross24":0,"crossAll":0,"measured":0,"hit1h":null,"med1h":null},"watch":[],"signals":[],"feed":[],"sources":[],"threshold":0.5,"rule":{"window":600000,"minN":6,"minPrev":4,"rise":0.1}};
+const T = TK.THEMES[CONFIG.theme], reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"]/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+const web = /^https?:/.test(location.protocol);
+const RAW = f => `https://raw.githubusercontent.com/${CONFIG.repo}/${f}`;
+const pct = v => v === null || v === undefined ? "–" : Math.round(v * 100) + "%";
+const hhmm = t => new Date(t).toTimeString().slice(0, 5), hhmmss = t => new Date(t).toTimeString().slice(0, 8);
+const ago = t => { const s = Math.max(0, (Date.now() - t) / 1000); return s < 60 ? Math.round(s) + "s ago" : s < 3600 ? Math.round(s / 60) + "m ago" : s < 86400 ? Math.round(s / 3600) + "h ago" : Math.round(s / 86400) + "d ago"; };
+const sh = m => m ? m.slice(0, 4) + "…" + m.slice(-4) : "";
+const sol = v => v >= 100 ? Math.round(v) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
+const signed = v => v === null || v === undefined ? "–" : (v > 0 ? "+" : "") + (Math.abs(v) >= 100 ? Math.round(v) : v.toFixed(1)) + "%";
+const MINT = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+// ---------- token links ----------
+if (CONFIG.ca) { $("#ca").textContent = CONFIG.ca; $("#copy").hidden = false; $("#cafoot").textContent = "ca " + CONFIG.ca;
+  $("#copy").onclick = () => navigator.clipboard.writeText(CONFIG.ca).then(() => $("#copy").textContent = "copied").catch(() => {});
+  ["#buy", "#buyTop"].forEach(s => $(s).href = "https://raydium.io/launchpad/token/?mint=" + CONFIG.ca); }
+else { $("#buy").removeAttribute("href"); $("#buy").textContent = "live at launch"; $("#buy").style.opacity = .6; }
+$("#xlink").href = CONFIG.x;
+$("#fpLink").href = `https://github.com/${CONFIG.repo}/blob/main/fingerprints.json`;
+
+// ---------- logo ----------
+{ const g = TK.OBJECTS.phone({}), c = $("#logo"), k = 2;
+  c.width = g.w * k; c.height = g.h * k; TK.draw(c.getContext("2d"), g, { theme: T, cell: k, x: 0, y: 0, shadow: false });
+  c.style.width = Math.round(26 * g.w / g.h) + "px"; }
+{ const cmd = "crossover watch --apps", el = $("#typed"); if (reduce) el.textContent = cmd;
+  else { let i = 0; const t = setInterval(() => { el.textContent = cmd.slice(0, ++i); if (i >= cmd.length) clearInterval(t); }, 70); } }
+
+// ---------- hero: two lanes of buys. terminal flow switches lanes at 45° (the shadow's angle) into the app lane and the phone ----------
+const HERO = { L: null, packets: [], last: 0, pressUntil: 0, lastPress: 0, nextT: 0, nextA: 0, running: false, cross: .55 };
+function layoutHero() {
+  const hero = $("#hero"), c = $("#heroBg"), d = devicePixelRatio || 1, r = hero.getBoundingClientRect(), a = $("#heroVis").getBoundingClientRect();
+  c.width = Math.round(r.width * d); c.height = Math.round(r.height * d);
+  const mob = innerWidth <= 860, g = TK.OBJECTS.phone({}), gp = TK.OBJECTS.phone({ press: true });
+  const cell = Math.max(3, Math.floor(Math.min(a.width * (mob ? .34 : .5) / g.w, a.height * .88 / g.h)));
+  const pw = g.w * cell, ph = g.h * cell;
+  const ox = Math.round(a.right - r.left - pw - (mob ? a.width * .08 : 6)), oy = Math.round(a.top - r.top + (a.height - ph) * .46);
+  const layer = (w, h) => { const o = document.createElement("canvas"); o.width = Math.ceil(w * d); o.height = Math.ceil(h * d);
+    const x = o.getContext("2d"); x.scale(d, d); x.imageSmoothingEnabled = false; return [o, x]; };
+  const [base, bx] = layer(r.width, r.height); TK.draw(bx, g, { theme: T, cell, x: ox, y: oy, shadowLen: 2600 });
+  const [obj, ox2] = layer(pw, ph); TK.draw(ox2, g, { theme: T, cell, x: 0, y: 0, shadow: false });
+  const [objP, ox3] = layer(pw, ph); TK.draw(ox3, gp, { theme: T, cell, x: 0, y: 0, shadow: false });
+  const pc = cell, D = pc * (mob ? 7 : 12);
+  const yApp = oy + 21 * cell, yTerm = yApp - D;
+  const x0 = Math.round(a.left - r.left - (mob ? 0 : 36)), xIn = ox + 2 * cell;
+  const sw0 = x0 + Math.round((xIn - x0 - D) * (mob ? .38 : .44) / pc) * pc, sw1 = sw0 + D;
+  HERO.L = { c, d, base, obj, objP, ox, oy, pw, ph, pc, D, yApp, yTerm, x0, xIn, sw0, sw1, xEnd: ox + pw * .5, mob, speed: mob ? 46 : 64 };
+}
+function hpos(p, s) { const L = HERO.L, x = L.x0 + s;
+  if (p.lane === "app") return [x, L.yApp, 1];
+  if (!p.cross || x < L.sw0) return [x, L.yTerm, 0];
+  if (x < L.sw1) { const k = Math.floor((x - L.sw0) / L.pc) * L.pc; return [x, L.yTerm + k, k >= L.D / 2 ? 1 : 0]; }
+  return [x, L.yApp, 1]; }
+function hspawn(lane, s = 0) { HERO.packets.push({ lane, s, cross: lane === "term" && Math.random() < HERO.cross }); }
+function hframe(now) {
+  const L = HERO.L; if (!L) return; const dt = HERO.last ? Math.min(.05, (now - HERO.last) / 1000) : 0; HERO.last = now;
+  if (now > HERO.nextT) { hspawn("term"); HERO.nextT = now + 240 + Math.random() * 260; }
+  if (now > HERO.nextA) { hspawn("app"); HERO.nextA = now + 900 + Math.random() * 700; }
+  const x = L.c.getContext("2d"); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, L.c.width, L.c.height); x.drawImage(L.base, 0, 0);
+  x.setTransform(L.d, 0, 0, L.d, 0, 0); x.imageSmoothingEnabled = false;
+  x.fillStyle = T.line;
+  for (let X = L.x0; X < L.xIn + L.pc * 2; X += L.pc * 2) { x.fillRect(X, L.yTerm + L.pc / 2 - 1, 2, 2); x.fillRect(X, L.yApp + L.pc / 2 - 1, 2, 2); }
+  x.fillStyle = T.accent; x.globalAlpha = .4;
+  for (let k = 0; k < L.D; k += L.pc) x.fillRect(L.sw0 + k + L.pc / 2 - 1, L.yTerm + k + L.pc / 2 - 1, 2, 2);
+  x.globalAlpha = 1;
+  x.font = `500 ${L.mob ? 10 : 11}px "Geist Mono", monospace`;
+  x.fillStyle = T.muted; x.fillText("terminals", L.x0 + 4, L.yTerm - 12);
+  x.fillStyle = T.accent; x.fillText("apps", L.x0 + 4, L.yApp + L.pc + 20);
+  if (!L.mob) x.fillText("crossover ↘", L.sw0 + L.D / 2 + L.pc * 1.6, L.yTerm + L.D / 2 - 2);
+  for (const p of HERO.packets) p.s += L.speed * dt;
+  HERO.packets = HERO.packets.filter(p => { const [px] = hpos(p, p.s);
+    if ((p.lane === "app" || p.cross) && px > L.xIn + L.pc * 3 && !p.hit) { p.hit = 1; if (p.cross && now - HERO.lastPress > 1100) { HERO.pressUntil = now + 160; HERO.lastPress = now; } }
+    return px < (p.lane === "app" || p.cross ? L.xIn + L.pc * 4 : L.xEnd); });
+  for (const p of HERO.packets) for (const [back, al] of [[2.6, .14], [1.3, .32], [0, 1]]) {
+    const s = p.s - back * L.pc; if (s < 0) continue; const [px, py, onApp] = hpos(p, s);
+    x.globalAlpha = al * Math.min(1, (px - L.x0) / 60); x.fillStyle = onApp ? T.accent : "#b3b8a6";
+    x.fillRect(Math.round(px), Math.round(py), L.pc, L.pc); }
+  x.globalAlpha = 1;
+  x.drawImage(now < HERO.pressUntil ? L.objP : L.obj, L.ox, L.oy, L.pw, L.ph);
+}
+function hloop(now) { hframe(now); if (HERO.running) requestAnimationFrame(hloop); }
+function hwarm() { HERO.packets = []; const L = HERO.L, len = L.xIn - L.x0;
+  for (let s = 0; s < len + L.pc * 4; s += L.pc * (2.2 + Math.random() * 2.4)) hspawn("term", s);
+  for (let s = 0; s < len; s += L.pc * (8 + Math.random() * 6)) hspawn("app", s); }
+layoutHero(); hwarm(); if (reduce) hframe(performance.now());
+new IntersectionObserver(es => es.forEach(e => { if (reduce) return;
+  if (e.isIntersecting && !HERO.running) { HERO.running = true; HERO.last = 0; requestAnimationFrame(hloop); } else if (!e.isIntersecting) HERO.running = false; })).observe($("#hero"));
+addEventListener("resize", () => { layoutHero(); if (reduce) hframe(performance.now()); }); document.fonts.ready.then(() => { layoutHero(); if (reduce) hframe(performance.now()); });
+
+// ---------- 01 story: an illustration of one coin's first minutes ----------
+const STORY = { N: 16, at: 10, p: 0,
+  app: [.05, .06, .08, .09, .12, .15, .19, .25, .32, .41, .55, .62, .67, .71, .73, .75] };
+function drawStory() {
+  const c = $("#storyCv"), d = devicePixelRatio || 1, W = Math.round(c.parentElement.clientWidth - 40), H = Math.round(W < 600 ? W * 1.02 : Math.min(W * .62, innerHeight * .58));
+  if (c.width !== W * d || c.height !== H * d) { c.width = W * d; c.height = H * d; c.style.height = H + "px"; }
+  const x = c.getContext("2d"); x.setTransform(d, 0, 0, d, 0, 0); x.clearRect(0, 0, W, H);
+  const S = STORY, p = S.p, N = S.N, cw = W / N, upto = Math.min(N, p * N * 1.25 + .6), F = "11px Geist Mono, monospace", small = W < 600;
+  const top = 26, lane = Math.max(14, Math.min(cw * .62, 26)), ph = H - top - 3 * (lane + 30) - 34, px = Math.max(2, Math.round(cw / 14));
+  const lanesY = [0, 1, 2].map(i => top + ph + 44 + i * (lane + 30));
+  const py = v => top + ph - v * ph;
+  for (let i = 0; i <= N; i++) { x.fillStyle = i <= upto ? "rgba(236,238,227,.07)" : "rgba(236,238,227,.03)"; x.fillRect(Math.round(i * cw), top - 12, 1, H - top + 6); }
+  // 50% line
+  x.fillStyle = T.muted; for (let X = 0; X < W; X += 6) x.fillRect(X, Math.round(py(.5)), 3, 1);
+  x.font = F; x.fillStyle = T.muted; x.fillText("50%", 2, py(.5) - 6);
+  x.fillText("share of buys", 2, top - 14);
+  // the two lines
+  const line = (vals, color) => { x.fillStyle = color;
+    for (let i = 0; i < Math.floor(upto); i++) { const v = vals[i], pv = i ? vals[i - 1] : v, X0 = Math.round(i * cw), X1 = Math.round((i + 1) * cw);
+      for (let X = X0; X < X1; X += px * 1.5) x.fillRect(X, Math.round(py(v)), px, px);
+      for (let Y = Math.min(py(v), py(pv)); Y <= Math.max(py(v), py(pv)); Y += px * 1.5) x.fillRect(X0, Math.round(Y), px, px); } };
+  line(S.app.map(v => 1 - v), T.term); line(S.app, T.accent);
+  if (upto > 2) { const i = Math.min(Math.floor(upto) - 1, N - 1); x.font = "500 11px Geist Mono, monospace";
+    x.fillStyle = T.accent; x.textAlign = "right"; x.fillText("apps " + pct(S.app[i]), W - 2, Math.max(top + 10, py(S.app[i]) - 10));
+    x.fillStyle = T.term; x.fillText("terminals " + pct(1 - S.app[i]), W - 2, Math.min(top + ph + 16, py(1 - S.app[i]) + 18)); x.textAlign = "left"; }
+  // lanes: each slot is 8 sub-blocks, lit by share
+  const lanes = [{ name: "terminals + bots", v: i => 1 - S.app[i], col: T.term }, { name: "apps", v: i => S.app[i], col: T.accent }];
+  lanes.forEach((ln, r) => { const Y = lanesY[r];
+    x.font = F; x.fillStyle = r ? T.accent : T.muted; x.fillText(ln.name, 0, Y - 10);
+    for (let i = 0; i < N; i++) { const X = i * cw + 3, w = cw - 6, seen = i < upto;
+      x.strokeStyle = seen ? T.line : "rgba(53,58,44,.45)"; x.strokeRect(Math.round(X) + .5, Math.round(Y) + .5, Math.round(w) - 1, lane - 1);
+      if (!seen) continue; const lit = Math.round(ln.v(i) * 8), bw = (w - 4) / 4, bh = (lane - 4) / 2;
+      x.fillStyle = ln.col; for (let k = 0; k < lit; k++) x.fillRect(Math.round(X + 2 + (k % 4) * bw) + .5, Math.round(Y + 2 + Math.floor(k / 4) * bh) + .5, Math.max(1, Math.round(bw) - 1), Math.max(1, Math.round(bh) - 1)); } });
+  // engine lane
+  const Y = lanesY[2], on = p > .76; x.font = F; x.fillStyle = T.muted; x.fillText("engine", 0, Y - 10);
+  x.textAlign = "right"; x.fillStyle = on ? T.accent : T.muted; x.fillText(on ? (small ? "buys · preview" : "buys 0.5 SOL · preview") : "watching", W, Y - 10); x.textAlign = "left";
+  for (let i = 0; i < N; i++) { const X = i * cw + 3, w = cw - 6; x.strokeStyle = i < upto ? T.line : "rgba(53,58,44,.45)"; x.strokeRect(Math.round(X) + .5, Math.round(Y) + .5, Math.round(w) - 1, lane - 1); }
+  if (on) { const X = S.at * cw + 3, w = cw - 6; x.fillStyle = T.accent; x.shadowColor = T.accent; x.shadowBlur = 14; x.fillRect(Math.round(X), Y, Math.round(w), lane); x.shadowBlur = 0;
+    if (w >= 26) { x.fillStyle = T.bg; x.font = "600 10px Geist Mono, monospace"; x.textAlign = "center"; x.fillText("buy", X + w / 2, Y + lane / 2 + 3.5); x.textAlign = "left"; } }
+  if (p > .62) { const cx = Math.round(S.at * cw + cw / 2); x.fillStyle = T.accent; for (let Yy = top - 8; Yy < lanesY[2] - 2; Yy += 6) x.fillRect(cx, Yy, 1, 3);
+    x.font = "500 11px Geist Mono, monospace"; x.textAlign = "right"; x.fillText("crossover", cx - 8, top - 1); x.textAlign = "left"; }
+  $("#minN").textContent = Math.max(1, Math.min(N, Math.ceil(upto)) * 3);
+}
+function storyScroll() { const s = $("#story"), r = s.getBoundingClientRect(), span = r.height - innerHeight;
+  STORY.p = innerWidth <= 980 ? 1 : span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 1; drawStory();
+  const n = Math.min(3, Math.floor(STORY.p * 4)); $$("#beats li").forEach((li, i) => { li.classList.toggle("on", i === n); li.classList.toggle("done", i < n); }); }
+addEventListener("scroll", () => requestAnimationFrame(storyScroll), { passive: true }); addEventListener("resize", () => { $("#storyCv").width = 0; storyScroll(); });
+document.fonts.ready.then(() => { $("#storyCv").width = 0; storyScroll(); }); storyScroll();
+
+// ---------- fingerprints ----------
+let FP = FP_INLINE, IX = FP ? FLOW.index(FP) : null;
+const NAME = id => (IX && IX.byId[id] && IX.byId[id].name) || id || "unmatched";
+function renderFP() {
+  if (!FP) return;
+  const row = e => `<div class="lrow"><i class="dot ${e.kind === "app" ? "acc" : "term"}"></i><div><div>${esc(e.name)}${e.strength === "weak" ? ' <span class="tag">weak</span>' : ""}</div><div class="what">${esc(e.what || "")}</div></div><div class="r sub">${e.addresses.length} addr</div></div>`;
+  const A = FP.entries.filter(e => e.kind === "app"), P = FP.entries.filter(e => e.kind === "pro");
+  $("#fpApps").innerHTML = A.map(row).join(""); $("#fpPro").innerHTML = P.map(row).join("");
+  $("#fpA").textContent = A.length; $("#fpP").textContent = P.length;
+  $("#fpCount").textContent = `${FP.entries.reduce((n, e) => n + e.addresses.length, 0)} addresses from ${FP.entries.length} apps and terminals. Updated ${FP.updated || ""}.`;
+}
+renderFP();
+if (web) fetch("/fingerprints.json", { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(j => { if (j && j.entries) { FP = j; IX = FLOW.index(FP); renderFP(); } }).catch(() => {});
+
+// ---------- 02 the reader ----------
+let SIZE = 60, busy = false, lastRead = null;
+$$("#sizeT .chip").forEach(b => b.onclick = () => { $$("#sizeT .chip").forEach(x => x.classList.toggle("on", x === b)); SIZE = +b.dataset.n; });
+const endpoints = () => (web ? ["/api/rpc"] : []).concat(["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com"]);
+function setProg(f, txt) { $("#prog").hidden = f === null; $("#prog i").style.width = Math.round((f || 0) * 100) + "%"; if (txt !== undefined) { $("#toolHint").textContent = txt; $("#toolHint").classList.remove("err"); } }
+async function readFlow(mint, sym) {
+  const hint = $("#toolHint");
+  if (!MINT.test(mint)) { hint.textContent = "that doesn't look like a solana mint address."; hint.classList.add("err"); return false; }
+  if (busy) return false; busy = true; $("#tGo").disabled = $("#hGo").disabled = true; $("#tIn").value = mint;
+  const R = FLOW.rpc(endpoints(), { timeout: 12000 });
+  try {
+    setProg(.03, "finding the latest trades…");
+    let sigs = await R.call("getSignaturesForAddress", [mint, { limit: Math.min(1000, SIZE * 3) }]);
+    sigs = (sigs || []).filter(s => !s.err);
+    if (!sigs.length) throw new Error("no trades found for this mint yet.");
+    const nNew = Math.ceil(SIZE * .7), pick = sigs.slice(0, nNew), rest = sigs.slice(nNew), more = SIZE - pick.length;
+    for (let i = 0; i < more && rest.length; i++) pick.push(rest[Math.floor(i * rest.length / more)]);
+    let done = 0; const trades = [];
+    await FLOW.pool(pick, 4, async s => { const tx = await R.call("getTransaction", [s.signature, FLOW.TXOPT]); done++;
+      setProg(.05 + .95 * done / pick.length, `reading transaction ${done} of ${pick.length}…`);
+      const x = FLOW.classify(tx, mint, IX); if (x) { if (!x.t) x.t = (s.blockTime || 0) * 1000; trades.push(x); } });
+    trades.sort((a, b) => a.t - b.t);
+    if (!trades.length) throw new Error("read " + pick.length + " transactions but none were wallet trades on this mint.");
+    lastRead = { mint, sym, trades, read: pick.length, at: Date.now() };
+    renderResult(lastRead); setProg(null, `read ${pick.length} transactions · ${trades.filter(t => t.side === "buy").length} buys · via ${R.st.ok || "rpc"}`);
+    return true;
+  } catch (e) { setProg(null); hint.textContent = (e && e.message) || "couldn't reach Solana right now. try again in a moment."; hint.classList.add("err"); return false; }
+  finally { busy = false; $("#tGo").disabled = $("#hGo").disabled = false; }
+}
+function renderResult(rd) {
+  const tr = rd.trades, th = IX.threshold, buys = tr.filter(t => t.side === "buy");
+  const S = FLOW.summarize(tr, 0, Infinity);
+  const t0 = tr[0].t, t1 = tr[tr.length - 1].t, mid = t0 + (t1 - t0) / 2;
+  const cur = FLOW.summarize(tr, mid, Infinity), prev = FLOW.summarize(tr, 0, mid), stt = FLOW.status(cur, prev, th);
+  const span = Math.max(60e3, t1 - t0), n = 12, step = span / (n - 1), ser = FLOW.series(tr, t1 + 1, step, n, Math.max(step * 3, 60e3));
+  let crossAt = null; for (let i = 1; i < n; i++) if (ser[i - 1] !== null && ser[i] !== null && ser[i - 1] < th && ser[i] >= th) crossAt = t1 - (n - 1 - i) * step;
+  const vt = { crossed: crossAt ? `crossed over to the apps <span>around ${hhmm(crossAt)}</span>` : "on the apps <span>app buys lead right now</span>",
+    crossing: "app share rising <span>not crossed yet</span>", "pro-led": "still a terminal coin <span>pros lead the buying</span>", thin: "not enough matched buys <span>to call it</span>" }[stt];
+  const un = S.nUn, tot = Math.max(1, S.nBuy);
+  const src = Object.entries(S.bySrc).sort((a, b) => b[1].n - a[1].n);
+  const name = rd.sym ? "$" + esc(rd.sym) : sh(rd.mint);
+  $("#result").innerHTML = `
+    <div class="verdict"><div class="big ${cur.share !== null && cur.share >= th ? "acc" : ""}">${pct(cur.share ?? S.share)}</div>
+      <div class="vt"><div class="k" style="margin-bottom:6px">app share now · ${name} · ${prev.share !== null ? "was " + pct(prev.share) + " earlier in the read" : S.n + " matched buys"}</div>${vt}</div>
+      <div class="act"><button class="btn" id="copyRes">copy result</button></div></div>
+    <div class="splitbar"><div style="flex:${S.nApp};--c:var(--accent)"></div><div style="flex:${S.nPro};--c:var(--term)"></div><div style="flex:${un};--c:var(--faint)"></div></div>
+    <div class="legend"><span><i class="dot acc"></i>apps <b>${S.nApp}</b></span><span><i class="dot term"></i>terminals + bots <b>${S.nPro}</b></span><span><i class="dot"></i>unmatched <b>${un}</b></span><span>buys ${sol(S.buySol)} SOL · sells ${sol(S.sellSol)} SOL</span></div>
+    <div class="chartbox"><div class="hd"><span>app share over the trades read · ${hhmm(t0)} → ${hhmm(t1)}</span><span class="tag">estimate</span></div><canvas id="rdCv"></canvas></div>
+    <div class="cols2">
+      <div><div class="k">where the buys came from</div><div class="hl">${src.length ? src.map(([id, v]) => { const e = IX.byId[id] || {};
+        return `<div class="lrow" style="grid-template-columns:14px minmax(0,1fr) auto auto"><i class="dot ${e.kind === "app" ? "acc" : "term"}"></i><div>${esc(e.name || id)}<div class="sub">${e.kind === "app" ? "app" : "terminal / bot"}${e.strength === "weak" ? " · weak" : ""}</div></div><div class="r">${v.n} buys</div><div class="r sub">${sol(v.sol)} SOL</div></div>`; }).join("") : '<div class="lrow" style="grid-template-columns:1fr"><span class="faint">no known fingerprints in these buys</span></div>'}</div></div>
+      <div><div class="k">latest buys</div><div class="tape hl">${buys.slice(-12).reverse().map(b => `<div class="tr"><span class="t">${hhmmss(b.t)}</span><span><span class="tag2 ${b.kind || "un"}">${esc(b.src ? NAME(b.src) : "unmatched")}</span></span><span>${sol(b.sol)} SOL</span><a href="https://solscan.io/tx/${esc(b.sig)}" target="_blank" rel="noopener">tx ↗</a></div>`).join("")}</div></div>
+    </div>
+    <p class="note">Matched ${Math.round(S.n / tot * 100)}% of ${tot} buys read. The share only counts matched buys, each capped at 2 SOL so one whale can't flip it. Unmatched buys are direct trades, custom bots or apps that aren't on the list yet.</p>`;
+  drawReadChart(ser, t0, t1, crossAt);
+  $("#copyRes").onclick = () => { const txt = `CROSSOVER read ${rd.sym ? "$" + rd.sym : rd.mint}: app share ${pct(cur.share ?? S.share)} now (${S.nApp} app / ${S.nPro} terminal buys of ${tot} read). ${stt === "crossed" ? "Crossed over to the apps." : stt === "crossing" ? "App share rising." : "Still a terminal coin."}`;
+    navigator.clipboard.writeText(txt).then(() => $("#copyRes").textContent = "copied").catch(() => {}); };
+}
+function drawReadChart(ser, t0, t1, crossAt) {
+  const c = $("#rdCv"); if (!c) return; const d = devicePixelRatio || 1, W = c.parentElement.clientWidth - 36, H = Math.round(Math.min(220, Math.max(150, W * .3)));
+  c.width = W * d; c.height = H * d; c.style.height = H + "px"; const x = c.getContext("2d"); x.scale(d, d);
+  const n = ser.length, cw = W / n, top = 10, ph = H - 34, py = v => top + ph - v * ph, px = Math.max(3, Math.round(cw / 9));
+  x.fillStyle = T.muted; for (let X = 0; X < W; X += 6) x.fillRect(X, Math.round(py(.5)), 3, 1);
+  x.font = "11px Geist Mono, monospace"; x.fillText("50%", 2, py(.5) - 6);
+  const line = (f, col) => { x.fillStyle = col; let pv = null;
+    ser.forEach((v, i) => { if (v === null) { pv = null; return; } const y = py(f(v)), X0 = Math.round(i * cw);
+      for (let X = X0; X < X0 + cw; X += px * 1.5) x.fillRect(X, Math.round(y), px, px);
+      if (pv !== null) for (let Y = Math.min(y, pv); Y <= Math.max(y, pv); Y += px * 1.5) x.fillRect(X0, Math.round(Y), px, px); pv = y; }); };
+  line(v => 1 - v, T.term); line(v => v, T.accent);
+  x.fillStyle = T.faint; x.fillText(hhmm(t0), 0, H - 4); x.textAlign = "right"; x.fillText(hhmm(t1), W, H - 4); x.textAlign = "left";
+  if (crossAt) { const i = Math.round((crossAt - t0) / Math.max(1, t1 - t0) * (n - 1)), cx = Math.round(i * cw + cw / 2); x.fillStyle = T.accent;
+    for (let Y = top; Y < top + ph; Y += 6) x.fillRect(cx, Y, 1, 3); x.textAlign = cx > W / 2 ? "right" : "left"; x.fillText("crossover " + hhmm(crossAt), cx + (cx > W / 2 ? -8 : 8), top + 12); x.textAlign = "left"; }
+  if (ser.every(v => v === null)) { x.fillStyle = T.faint; x.fillText("too few matched buys to draw a line", 8, top + ph / 2); }
+}
+function go(inp, hint, scroll) { const v = $(inp).value.trim(); const h = $(hint);
+  if (!MINT.test(v)) { h.textContent = "that doesn't look like a solana mint address."; h.classList.add("err"); return; }
+  h.textContent = ""; h.classList.remove("err");
+  if (scroll) $("#tool").scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
+  readFlow(v, null); }
+$("#hGo").onclick = () => go("#hIn", "#heroHint", true); $("#tGo").onclick = () => go("#tIn", "#toolHint", false);
+$("#hIn").onkeydown = e => { if (e.key === "Enter") $("#hGo").click(); }; $("#tIn").onkeydown = e => { if (e.key === "Enter") $("#tGo").click(); };
+function readCoin(m, sym) { if (SRC === "preview") { $("#heroHint").textContent = "preview data. paste a real mint to read it."; return; } $("#tIn").value = m; $("#tool").scrollIntoView({ behavior: reduce ? "auto" : "smooth" }); readFlow(m, sym); }
+
+// ---------- 03/04 the engine's data ----------
+let DATA = null, SRC = "";
+function spark(series) { const v = series || [], n = v.length; if (!n) return "";
+  const pts = []; v.forEach((s, i) => { if (s !== null) pts.push(`${(i / (n - 1) * 100).toFixed(1)},${(26 - s * 24).toFixed(1)}`); });
+  return `<svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none"><line x1="0" x2="100" y1="14" y2="14" stroke="${T.line}" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"/>${pts.length > 1 ? `<polyline fill="none" stroke="${T.accent}" stroke-width="1.6" vector-effect="non-scaling-stroke" points="${pts.join(" ")}"/>` : ""}</svg>`; }
+function render(D, src) {
+  DATA = D; SRC = src; const now = Date.now(), age = now - D.updated, live = src !== "preview" && age < 20 * 60e3;
+  const t = D.totals || {}, lamp = $("#lamp");
+  lamp.className = "lamp" + (live ? " live" : ""); lamp.textContent = src === "preview" ? "preview" : live ? "live" : "delayed · " + ago(D.updated);
+  $("#topDot").className = "dot" + (live ? " on" : ""); $("#lineDot").className = "dot" + (live ? " on" : ""); $("#srDot").className = "dot" + (src !== "preview" ? " on" : "");
+  $("#topLive").textContent = src === "preview" ? "engine: preview" : `${t.cross24 || 0} crossover${t.cross24 === 1 ? "" : "s"} today`;
+  $("#liveline").innerHTML = src === "preview" ? "preview · the engine's live numbers appear here once it's running"
+    : `${live ? "live" : "updated " + ago(D.updated)} · <b>${(t.buys24 || 0).toLocaleString("en-US")}</b> buys fingerprinted in 24h · app share <b>${pct(t.share24)}</b> · <b>${t.cross24 || 0}</b> crossover${t.cross24 === 1 ? "" : "s"} today`;
+  $("#sA").textContent = (t.buys24 || 0).toLocaleString("en-US"); $("#sB").textContent = pct(t.share24); $("#sC").textContent = t.cross24 ?? 0; $("#sD").textContent = (D.watch || []).length;
+  $("#upd").textContent = src === "preview" ? "preview data" : "updated " + ago(D.updated);
+  if (D.rule && D.threshold) $("#ruleTxt").textContent = `App share of matched buys passes ${Math.round(D.threshold * 100)}% in a ${Math.round(D.rule.window / 60e3)}-minute window, up at least ${Math.round(D.rule.rise * 100)} points on the ${Math.round(D.rule.window / 60e3)} minutes before, with more SOL buying than selling.`;
+  const top3 = (D.sources || []).slice(0, 3).map(s => `${NAME(s.id)} ${s.n}`).join(" · "); $("#srcTop").textContent = top3 ? "top sources 24h: " + top3 : "";
+  // hero chips
+  const W = (D.watch || []).slice().sort((a, b) => ({ crossed: 0, crossing: 1, "pro-led": 2, thin: 3 }[a.status] - { crossed: 0, crossing: 1, "pro-led": 2, thin: 3 }[b.status]));
+  $("#tryHero").innerHTML = `<span>or read a coin the engine is watching:</span>` + (W.length ? W.slice(0, 4).map(w => `<button class="chip" data-m="${esc(w.m)}" data-s="${esc(w.sym)}">$${esc(w.sym)}<small class="${w.share >= (D.threshold || .5) ? "acc" : ""}">${pct(w.share)}</small></button>`).join("") : '<span class="faint">none right now</span>');
+  $$("#tryHero .chip").forEach(b => b.onclick = () => readCoin(b.dataset.m, b.dataset.s));
+  // feature: latest crossover
+  const s0 = (D.signals || [])[0], f = $("#feature");
+  if (s0) { f.className = "feature"; const o = s0.out || {};
+    f.innerHTML = `<div><div class="k" style="margin-bottom:12px">latest crossover · ${ago(s0.t)} · ${esc(s0.lp)}</div><div class="big">$${esc(s0.sym)}</div></div>
+      <div class="what"><span class="acc">app share ${pct(s0.prev)} → ${pct(s0.share)}</span><br><span>${s0.n} matched buys${s0.via ? " · led by " + esc(NAME(s0.via)) : ""} · engine buy ${s0.engine ? s0.engine.sol : 0.5} SOL <span class="tag">preview</span></span></div>
+      <div class="side">+15m <b class="${o.m15 > 0 ? "up" : o.m15 < 0 ? "dn" : ""}">${typeof o.m15 === "number" ? signed(o.m15) : "measuring"}</b><br>+1h <b class="${o.h1 > 0 ? "up" : o.h1 < 0 ? "dn" : ""}">${typeof o.h1 === "number" ? signed(o.h1) : "measuring"}</b><br><a href="#" data-m="${esc(s0.m)}" data-s="${esc(s0.sym)}" class="acc rd">read it ↗</a></div>`;
+    f.querySelector(".rd").onclick = e => { e.preventDefault(); readCoin(s0.m, s0.sym); }; }
+  else { f.className = "feature wait"; f.textContent = src === "preview" ? "the next crossover shows up here, big." : "no crossover yet. the engine is watching " + (D.watch || []).length + " coins."; }
+  // watch list
+  $("#wl").innerHTML = `<div class="lrow head"><span></span><span>coin</span><span class="spk">app share · last 30 min</span><span>now</span><span class="r">status</span></div>` +
+    (W.length ? W.map(w => `<div class="lrow" data-m="${esc(w.m)}" data-s="${esc(w.sym)}"><i class="dot ${w.status === "crossed" ? "acc" : w.status === "crossing" ? "" : "term"}" ${w.status === "crossing" ? 'style="background:var(--ink)"' : ""}></i>
+      <div><div>$${esc(w.sym)}</div><div class="sub">${esc(w.lp)} · ${w.b5 || 0} buys/5m · ${w.n} matched</div></div>
+      <div class="spk">${spark(w.series)}</div>
+      <div><span class="sb"><i style="width:${Math.round((w.share || 0) * 100)}%"></i><b style="left:${Math.round((D.threshold || .5) * 100)}%"></b></span><div class="sub" style="margin-top:6px">${pct(w.share)}${w.prev !== null && w.share !== null ? (w.share > w.prev ? " ↑" : w.share < w.prev ? " ↓" : "") : ""}</div></div>
+      <div class="r"><span class="st ${esc(w.status)}">${esc(w.status)}</span></div></div>`).join("") : '<div class="lrow" style="grid-template-columns:1fr"><span class="faint">nothing hot enough to watch right now.</span></div>');
+  $$("#wl .lrow[data-m]").forEach(r => r.onclick = () => readCoin(r.dataset.m, r.dataset.s));
+  // log
+  const cls = { cross: "acc", heat: "", watch: "mut", drop: "faint" }, lbl = { cross: "cross", heat: "heat", watch: "watch", drop: "drop" };
+  $("#log").innerHTML = (D.feed || []).slice(0, 40).map(e => `<div><span class="t">${hhmm(e.t)}</span><span class="${cls[e.k] || ""}">${lbl[e.k] || e.k}</span><span><b>$${esc(e.sym)}</b> <span class="mut">${esc(e.lp || "")}</span> · ${esc(e.msg)}</span></div>`).join("") || '<div><span class="t"></span><span class="faint">…</span><span class="faint">the log fills as the engine runs.</span></div>';
+  // signals
+  const sg = D.signals || [];
+  $("#fA").textContent = t.crossAll ?? sg.length; $("#fB").textContent = t.measured ?? 0; $("#fC").textContent = t.hit1h === null || t.hit1h === undefined ? "–" : pct(t.hit1h); $("#fD").textContent = t.med1h === null || t.med1h === undefined ? "–" : signed(t.med1h);
+  const o = (s, k) => { const v = (s.out || {})[k]; return typeof v === "number" ? `<span class="${v > 0 ? "up" : v < 0 ? "dn" : ""}">${signed(v)}</span>` : v === null ? '<span class="faint">n/a</span>' : '<span class="faint">…</span>'; };
+  $("#sigt").innerHTML = `<div class="sr head"><span class="hide">when</span><span>coin</span><span class="hide">app share</span><span class="r">+15m</span><span class="r">+1h</span><span class="r hide">+4h</span><span class="r hide">engine · preview</span></div>` +
+    (sg.length ? sg.slice(0, 30).map(s => `<div class="sr"><span class="hide mut">${new Date(s.t).toISOString().slice(5, 16).replace("T", " ")}</span><span>$${esc(s.sym)} <span class="sub mut">${esc(s.lp)}</span></span><span class="hide">${pct(s.prev)} → <span class="acc">${pct(s.share)}</span></span><span class="r">${o(s, "m15")}</span><span class="r">${o(s, "h1")}</span><span class="r hide">${o(s, "h4")}</span><span class="r hide mut">${s.engine ? s.engine.sol : 0.5} SOL</span></div>`).join("")
+      : `<div class="empty">no crossovers logged yet. the log starts at launch and keeps every signal, good or bad.</div>`);
+}
+async function loadData() {
+  const tries = web ? [["/api/data", "api"], [RAW("flow-data/data.json"), "github"]] : [[RAW("flow-data/data.json"), "github"]];
+  for (const [u, src] of tries) {
+    try { const r = await fetch(u, { cache: "no-store" }); if (!r.ok) continue; const j = await r.json(); if (j && j.updated) { render(j, src); return; } } catch (e) {}
+  }
+  if (SNAP && !DATA) render(Object.assign({}, SNAP, { updated: Date.now() - 90e3 }), "preview");
+}
+loadData(); setInterval(loadData, 30e3);
+
+// ---------- top bar + active nav ----------
+const secs = $$("section.sess");
+addEventListener("scroll", () => { $("#top").classList.toggle("solid", scrollY > 10);
+  const cur = secs.filter(s => s.getBoundingClientRect().top < innerHeight * .4).pop();
+  $$(".nav a").forEach(a => a.classList.toggle("on", !!cur && a.getAttribute("href") === "#" + cur.id)); }, { passive: true });
+</script>
+</body></html>

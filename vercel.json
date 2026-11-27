@@ -1,0 +1,9 @@
+{
+  "cleanUrls": true,
+  "git": { "deploymentEnabled": { "flow-data": false } },
+  "functions": { "api/data.js": { "maxDuration": 10 }, "api/rpc.js": { "maxDuration": 15 } },
+  "headers": [
+    { "source": "/(.*)\\.png", "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }] },
+    { "source": "/fonts/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] }
+  ]
+}

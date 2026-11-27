@@ -1,0 +1,60 @@
+# The CROSSOVER engine: every 5 minutes, read the flow for ~4 minutes, then publish the result
+# to the `flow-data` branch (data.json, engine.json). The site reads it from there.
+# Optional: add a free Helius key as the repo secret HELIUS_API_KEY for faster reads. Without it, public RPC is used.
+name: engine
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/engine.yml", "engine/**", "src/flow.js", "fingerprints.json"]
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: engine
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            engine
+            src
+            fingerprints.json
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Load the engine state
+        run: |
+          git clone -q --depth 1 --branch flow-data "https://github.com/${GITHUB_REPOSITORY}.git" data 2>/dev/null || mkdir -p data
+          rm -rf data/.git
+      - name: Read the flow
+        env:
+          DATA_DIR: data
+          RUN_MS: "250000"
+          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
+        run: node engine/run.js
+      - name: Publish
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd data
+          git init -q -b flow-data
+          git add -A
+          git -c user.name="crossover-engine" -c user.email="engine@users.noreply.github.com" commit -qm "flow sync $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -qf "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" flow-data:flow-data
+      # GitHub's cron is often late or skipped, so each run queues the next one (only one waits at a time).
+      # If a run fails, the chain stops and the cron above starts it again.
+      - name: Queue the next run
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          waiting=$(gh run list -R "$GITHUB_REPOSITORY" --workflow engine.yml --limit 20 --json status -q '[.[] | select(.status=="queued" or .status=="pending" or .status=="waiting" or .status=="requested")] | length' || echo 1)
+          if [ "$waiting" = "0" ]; then gh workflow run engine.yml -R "$GITHUB_REPOSITORY" --ref main && echo "next run queued"; else echo "a run is already waiting"; fi
