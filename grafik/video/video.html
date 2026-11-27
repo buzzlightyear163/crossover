@@ -1,0 +1,164 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:"Geist Mono";font-weight:400;src:url(node_modules/@fontsource/geist-mono/files/geist-mono-latin-400-normal.woff2)}
+@font-face{font-family:"Geist Mono";font-weight:500;src:url(node_modules/@fontsource/geist-mono/files/geist-mono-latin-500-normal.woff2)}
+@font-face{font-family:"Geist Mono";font-weight:600;src:url(node_modules/@fontsource/geist-mono/files/geist-mono-latin-600-normal.woff2)}
+@font-face{font-family:"Geist Mono";font-weight:700;src:url(node_modules/@fontsource/geist-mono/files/geist-mono-latin-700-normal.woff2)}
+html,body{margin:0;background:#000}canvas{display:block}
+</style></head>
+<body><canvas id="c" width="1920" height="1080"></canvas>
+<script src="termkit.js"></script>
+<script>
+// CROSSOVER launch video, 1920x1080. render(t) draws the moment t (seconds), deterministically.
+const T = TK.THEMES.lime, W = 1920, H = 1080, cv = document.getElementById("c"), x = cv.getContext("2d");
+const C = { bg: T.bg, ink: T.ink, mut: T.muted, faint: "#4b5043", hair: "#22261c", line: T.line, acc: T.accent, term: "#b3b8a6", paper: T.card };
+const F = (w, s) => `${w} ${s}px "Geist Mono", monospace`;
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), p01 = (t, a, b) => clamp((t - a) / (b - a));
+const eo = k => 1 - Math.pow(1 - k, 3), eio = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const fade = (t, a, b, c, d) => Math.min(p01(t, a, b), 1 - p01(t, c, d));
+let seed = 11; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+
+// ---------- the handset, pre-rendered once (with and without its long shadow, pressed and not) ----------
+function layer(w, h, fn) { const c = document.createElement("canvas"); c.width = w; c.height = h; const g = c.getContext("2d"); g.imageSmoothingEnabled = false; fn(g); return c; }
+const G = TK.OBJECTS.phone({}), GP = TK.OBJECTS.phone({ press: true });
+const PH = cell => ({ cell, w: G.w * cell, h: G.h * cell,
+  shadow: layer(G.w * cell + 1300, G.h * cell + 1300, g => TK.draw(g, G, { theme: T, cell, x: 0, y: 0, shadowLen: 1300 })),
+  press: layer(G.w * cell, G.h * cell, g => TK.draw(g, GP, { theme: T, cell, x: 0, y: 0, shadow: false })) });
+const P1 = PH(9), P2 = PH(11);
+
+// ---------- lanes geometry ----------
+const PX = 1440, PY = 330, pc = 14, D = pc * 12;
+const yApp = PY + 21 * 9, yTerm = yApp - D, x0 = -60, xIn = PX + 2 * 9, sw0 = 640, sw1 = sw0 + D, SPEED = 380;
+// crossing share over time: none until the switch opens, then it climbs
+const crossP = tt => tt < 7.6 ? 0 : 0.15 + 0.7 * p01(tt, 7.6, 10.6);
+const PK = [];
+for (let t0 = -3; t0 < 17.5; t0 += 0.1 + rnd() * 0.16) { const reach = t0 + (sw0 - x0) / SPEED; PK.push({ t0, lane: "term", cross: rnd() < crossP(reach) }); }
+for (let t0 = 3.0; t0 < 17.5; t0 += (t0 < 8 ? 0.75 : 0.42) + rnd() * 0.4) PK.push({ t0, lane: "app" });
+function ppos(p, s) { const X = x0 + s;
+  if (p.lane === "app") return [X, yApp, 1];
+  if (!p.cross || X < sw0) return [X, yTerm, 0];
+  if (X < sw1) { const k = Math.floor((X - sw0) / pc) * pc; return [X, yTerm + k, k >= D / 2 ? 1 : 0]; }
+  return [X, yApp, 1]; }
+
+// ---------- pieces ----------
+function bg() { x.fillStyle = C.bg; x.fillRect(0, 0, W, H);
+  x.fillStyle = "rgba(236,238,227,.035)"; for (let Y = 0; Y < H; Y += 8) for (let X = (Y / 8) % 2 ? 4 : 0; X < W; X += 8) x.fillRect(X, Y, 1, 1); }
+function txt(s, X, Y, font, col, al = 1, align = "left") { x.globalAlpha = al; x.font = font; x.fillStyle = col; x.textAlign = align; x.fillText(s, X, Y); x.textAlign = "left"; x.globalAlpha = 1; }
+function cursor(X, Y, h, t, al = 1) { if (Math.floor(t * 1.8) % 2) return; x.globalAlpha = al; x.fillStyle = C.acc; x.fillRect(X, Y - h * .8, h * .55, h); x.globalAlpha = 1; }
+function prompt(t, al) {
+  const cmd = "crossover watch --apps", n = Math.floor(p01(t, .25, 1.35) * cmd.length);
+  x.font = F(400, 26); const pre = "anon@crossover ~ % "; txt(pre, 120, 118, F(400, 26), C.mut, al);
+  const w = x.measureText(pre).width; txt(cmd.slice(0, n), 120 + w, 118, F(400, 26), C.ink, al);
+  x.font = F(400, 26); cursor(120 + w + x.measureText(cmd.slice(0, n)).width + 4, 118, 26, t, al);
+}
+function caption(lines, t, a, b, Y = 860) { const al = fade(t, a, a + .45, b - .4, b); if (al <= 0) return;
+  const dy = (1 - eo(p01(t, a, a + .6))) * 18;
+  lines.forEach((ln, i) => { let X = 120; for (const [s, col] of ln) { txt(s, X, Y + i * 76 + dy, F(500, 62), col, al); x.font = F(500, 62); X += x.measureText(s).width; } }); }
+function tag(s, X, Y, al) { x.globalAlpha = al; x.font = F(500, 15); const w = x.measureText(s.toUpperCase()).width + 22; x.strokeStyle = C.hair; x.lineWidth = 1.5; x.strokeRect(X + .5, Y - 18.5, w, 26); txt(s.toUpperCase(), X + 11, Y, F(500, 15), C.faint, al); x.globalAlpha = 1; return w; }
+
+function lanes(t, al) {
+  x.globalAlpha = al;
+  const xEnd = xIn + pc * 2, edge = X => X > 1290 && t < 7.6 ? clamp(1 - (X - 1290) / 150) : 1;
+  x.fillStyle = C.line; for (let X = x0; X < xEnd; X += pc * 2) { x.globalAlpha = al * edge(X); x.fillRect(X, yTerm + pc / 2 - 1, 3, 3); if (t > 3.2) { x.globalAlpha = al * edge(X) * p01(t, 3.2, 3.8); x.fillRect(X, yApp + pc / 2 - 1, 3, 3); } }
+  const sw = p01(t, 7.4, 8.0); x.fillStyle = C.acc;
+  for (let k = 0; k < D * sw; k += pc) { x.globalAlpha = al * .5; x.fillRect(sw0 + k + pc / 2 - 1, yTerm + k + pc / 2 - 1, 3, 3); }
+  x.globalAlpha = 1;
+  txt("terminals + bots", 120, yTerm - 30, F(500, 22), C.mut, al * p01(t, .6, 1.2));
+  txt("apps", 120, yApp + pc + 44, F(500, 22), C.acc, al * p01(t, 3.3, 3.9));
+  txt("crossover ↘", sw0 + D / 2 + pc * 2, yTerm + D / 2 - 4, F(500, 22), C.acc, al * p01(t, 7.8, 8.3));
+  for (const p of PK) { if (t < p.t0) continue; const s = (t - p.t0) * SPEED;
+    const [px] = ppos(p, s), lim = (p.lane === "app" || p.cross) ? xIn + pc * 3 : (t < 7.6 ? 1500 : PX + 140);
+    if (px > lim) continue;
+    for (const [back, a] of [[2.6, .14], [1.3, .32], [0, 1]]) { const ss = s - back * pc; if (ss < 0) continue; const [X, Y, on] = ppos(p, ss);
+      x.globalAlpha = al * a * clamp((X - x0) / 80) * edge(X); x.fillStyle = on ? C.acc : C.term; x.fillRect(Math.round(X), Math.round(Y), pc, pc); } }
+  x.globalAlpha = 1;
+}
+function share(t) { // illustrated app share: low, then it climbs through 50%
+  return t < 7.6 ? .06 + .06 * p01(t, 3.6, 7.6) : .12 + .46 * eio(p01(t, 7.8, 10.8)); }
+function meter(t, al) { if (al <= 0) return;
+  const v = share(t), X = 1180, Y = 150, w = 600;
+  txt("APP SHARE OF BUYS", X, Y, F(500, 17), C.mut, al);
+  tag("illustration", X + w - 156, Y, al * .9);
+  txt(Math.round(v * 100) + "%", X, Y + 92, F(600, 96), v >= .5 ? C.acc : C.ink, al);
+  const by = Y + 122; x.globalAlpha = al; x.fillStyle = C.term; for (let k = 0; k < w; k += 5) x.fillRect(X + k, by, 2, 14);
+  x.fillStyle = C.acc; x.fillRect(X, by, w * v, 14); x.fillStyle = C.ink; x.fillRect(X + w * .5, by - 6, 2, 26); x.globalAlpha = 1;
+  txt("50%", X + w * .5 + 8, by + 40, F(400, 16), C.mut, al);
+  const hit = p01(t, 10.05, 10.25) * (1 - p01(t, 11.0, 11.4));
+  if (hit > 0) { x.globalAlpha = al * hit; x.fillStyle = C.acc; x.fillRect(X + 250, Y + 30, 214, 40); txt("CROSSOVER", X + 266, Y + 58, F(700, 22), C.bg, al * hit); x.globalAlpha = 1; }
+}
+function phone(t, al) {
+  const k = eo(p01(t, 7.5, 8.3)), ox = PX + (1 - k) * 640;
+  if (k <= 0) return; x.globalAlpha = al; x.drawImage(P1.shadow, ox, PY);
+  const press = t > 10.1 && t < 10.5 || t > 10.75 && t < 11.0; if (press) x.drawImage(P1.press, ox, PY);
+  x.globalAlpha = 1;
+  if (t > 10.1) { const a = al * p01(t, 10.1, 10.5); txt("engine buy · preview", ox + P1.w / 2, PY + P1.h + 56, F(500, 18), C.mut, a, "center"); }
+}
+
+// ---------- scene 4: the reader, with an example coin ----------
+function reader(t, al) { if (al <= 0) return;
+  const X = 220, Y = 190, w = 1480, typ = "7xKpQd3mVb2nTfWc8LrYs5HgJu4ZaE6oNyRiXk9fpump";
+  const dy = (1 - eo(p01(t, 11.6, 12.3))) * 30;
+  x.save(); x.translate(0, dy); x.globalAlpha = al;
+  txt("anon@crossover ~ % ", X, Y, F(400, 24), C.mut, al); x.font = F(400, 24); txt("crossover read", X + x.measureText("anon@crossover ~ % ").width, Y, F(400, 24), C.ink, al);
+  tag("example", X + w - 112, Y, al);
+  // input bar
+  const iy = Y + 34; x.globalAlpha = al; x.fillStyle = C.paper; x.fillRect(X, iy, w, 76); x.strokeStyle = C.line; x.lineWidth = 2; x.strokeRect(X + 1, iy + 1, w - 2, 74);
+  x.fillStyle = C.acc; x.fillRect(X + w - 220, iy, 220, 76); txt("▶ read flow", X + w - 190, iy + 47, F(600, 24), C.bg, al);
+  const n = Math.floor(p01(t, 11.9, 12.7) * typ.length); txt(typ.slice(0, n), X + 26, iy + 48, F(400, 26), C.ink, al);
+  // result
+  const r = p01(t, 12.85, 13.3), ry = iy + 150;
+  if (r > 0) {
+    const ra = al * r;
+    txt(Math.round(56 * eo(r)) + "%", X, ry + 96, F(600, 124), C.acc, ra);
+    txt("APP SHARE NOW · WAS 14% EARLIER IN THE READ", X + 330, ry + 36, F(500, 17), C.mut, ra);
+    txt("crossed over to the apps", X + 330, ry + 82, F(500, 34), C.ink, ra);
+    // split bar
+    const sy = ry + 140, a1 = 17, a2 = 13, a3 = 9, tot = a1 + a2 + a3, segs = [[a1, C.acc], [a2, C.term], [a3, C.faint]];
+    let sx = X; x.globalAlpha = ra;
+    for (const [v, col] of segs) { const sw = w * v / tot * eo(p01(t, 13.0, 13.6)); x.fillStyle = col; for (let k = 0; k < sw - 4; k += 8) x.fillRect(sx + k, sy, 6, 38); sx += w * v / tot; }
+    x.strokeStyle = C.line; x.lineWidth = 2; x.strokeRect(X + 1, sy - 1, w - 2, 40); x.globalAlpha = 1;
+    txt("apps 17", X, sy + 78, F(500, 22), C.acc, ra); txt("terminals + bots 13", X + 200, sy + 78, F(500, 22), C.term, ra); txt("unmatched 9", X + 520, sy + 78, F(500, 22), C.mut, ra);
+    // sources
+    const cy = sy + 132, A = [["pump.fun app", 8], ["Fomo", 6], ["Phantom", 3]], B = [["Axiom", 6], ["Padre", 4], ["GMGN", 3]];
+    const ca = al * p01(t, 13.5, 14.0);
+    [[A, X, C.acc, "apps"], [B, X + 760, C.term, "terminals + bots"]].forEach(([L, cx, col, hd]) => {
+      txt(hd.toUpperCase(), cx, cy, F(500, 16), C.mut, ca);
+      L.forEach(([nm, v], i) => { const yy = cy + 46 + i * 46; x.globalAlpha = ca; x.fillStyle = col; x.fillRect(cx, yy - 13, 10, 10); x.fillStyle = C.hair; x.fillRect(cx, yy + 16, 720, 1.5);
+        txt(nm, cx + 28, yy, F(400, 24), C.ink, ca); txt(v + " buys", cx + 700, yy, F(400, 22), C.mut, ca, "right"); }); });
+  }
+  x.restore(); x.globalAlpha = 1;
+}
+
+// ---------- scene 5: end card ----------
+function endcard(t, al) { if (al <= 0) return;
+  const k = eo(p01(t, 14.6, 15.4)); x.globalAlpha = al;
+  x.drawImage(P2.shadow, 300, 230 + (1 - k) * 40); x.globalAlpha = 1;
+  const X = 900; txt("anon@crossover ~ % crossover watch --apps", X, 360, F(400, 26), C.mut, al * p01(t, 14.9, 15.3));
+  const tk = p01(t, 15.1, 15.7), dy = (1 - eo(tk)) * 24;
+  txt("buys when it", X, 490 + dy, F(400, 104), C.ink, al * tk);
+  x.font = F(400, 104); const w1 = x.measureText("hits ").width;
+  txt("hits ", X, 600 + dy, F(400, 104), C.ink, al * tk); txt("the apps.", X + w1, 600 + dy, F(700, 104), C.acc, al * tk);
+  x.font = F(700, 104); cursor(X + w1 + x.measureText("the apps.").width + 10, 600 + dy, 92, t, al * tk);
+  const la = al * p01(t, 15.9, 16.4);
+  x.globalAlpha = la; x.fillStyle = C.acc; x.fillRect(X, 676, 84, 40); txt("LIVE", X + 14, 705, F(700, 24), C.bg, la);
+  txt("$CROSSOVER on Raydium LaunchLab", X + 104, 705, F(500, 28), C.ink, la);
+  txt("fingerprints every buy · terminal or app", X, 770, F(400, 24), C.mut, la);
+}
+
+function render(t) {
+  x.globalAlpha = 1; bg();
+  const a1 = 1 - p01(t, 11.2, 11.7);                 // lanes + meter scenes
+  if (a1 > 0) {
+    prompt(t, a1); lanes(t, a1 * p01(t, .5, 1.2)); phone(t, a1); meter(t, a1 * p01(t, 3.7, 4.3));
+    caption([[["The pros buy first.", C.ink]]], t, 1.0, 3.6);
+    caption([[["The crowd buys later,", C.ink]], [["on their phones.", C.acc]]], t, 3.9, 7.4);
+    caption([[["CROSSOVER fingerprints every buy", C.ink]], [["and flags the ", C.ink], ["crossover.", C.acc]]], t, 7.7, 11.2);
+  }
+  reader(t, fade(t, 11.6, 12.0, 14.3, 14.7));
+  endcard(t, p01(t, 14.6, 15.0));
+}
+window.render = render;
+window.ready = document.fonts.ready.then(() => (render(0), true));
+</script>
+</body></html>
