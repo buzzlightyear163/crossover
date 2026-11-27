@@ -117,7 +117,7 @@
   async function pool(items, n, fn) { const out = new Array(items.length); let k = 0;
     await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (k < items.length) { const i = k++; try { out[i] = await fn(items[i], i); } catch (e) { out[i] = null; } } }));
     return out; }
-  const TXOPT = { encoding: "json", maxSupportedTransactionVersion: 0, commitment: "confirmed" };
+  const TXOPT = { encoding: "json", maxSupportedTransactionVersion: 1, commitment: "confirmed" };   // v1 transactions are live on mainnet
 
   return { WSOL, CAP, RULE, index, classify, summarize, detect, status, series, rpc, pool, sleep, TXOPT };
 });

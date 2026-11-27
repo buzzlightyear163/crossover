@@ -73,8 +73,8 @@ async function discover(st, now) {
     const C = st.coins[c.m] = Object.assign(st.coins[c.m] || { m: c.m, trades: [], first: now }, { sym: c.sym, dex: c.dex, pool: c.pool, lp: lpOf(c.dex, c.m), b5: c.b5, s5: c.s5, seen: now });
     if (c.px) { C.px = c.px; C.pxAt = now; } if (c.mc) C.mc = c.mc;
   }
-  const hot = Object.values(st.coins).filter(C => C.seen === now && C.b5 >= 10).sort((a, b) => b.b5 - a.b5);
-  const keep = Object.values(st.coins).filter(C => C.watch && now - C.seen < 10 * 60e3 && C.b5 >= 4);
+  const hot = Object.values(st.coins).filter(C => C.seen === now && C.b5 >= 6).sort((a, b) => b.b5 - a.b5);
+  const keep = Object.values(st.coins).filter(C => C.watch && now - C.seen < 10 * 60e3 && C.b5 >= 3);
   const next = new Set(keep.map(C => C.m));
   for (const C of hot) { if (next.size >= MAX_WATCH) break; next.add(C.m); }
   for (const C of Object.values(st.coins)) {
