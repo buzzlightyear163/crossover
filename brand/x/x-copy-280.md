@@ -36,7 +36,7 @@ Read any coin: [länk]
 ```
 Svar 1 – CA (70/280)
 ```text
-CA: [CA]
+CA: FVSrZmupcR2uY49CdSyGcoxL6bHpZDUeGVzVJHLbRYGV
 
 This is the only CA.
 ```
@@ -54,7 +54,7 @@ Engine buys: preview.
 ## Efter launch
 1. Första timmarna – CA och kärnan (202/280)
 ```text
-CA: [CA]
+CA: FVSrZmupcR2uY49CdSyGcoxL6bHpZDUeGVzVJHLbRYGV
 
 Terminal buys or app buys? CROSSOVER reads the fee wallets and app programs inside every buy and flags when the apps take over.
 

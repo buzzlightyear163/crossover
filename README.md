@@ -1,7 +1,7 @@
 Kategori: Köpmotor (läser flödet live)
 Tagline: Buys when it hits the apps.
 Plattform: Raydium LaunchLab
-CA: (fylls i vid launch)
+CA: FVSrZmupcR2uY49CdSyGcoxL6bHpZDUeGVzVJHLbRYGV
 Stil: termkit, session-layout, eget tema "lime" (nästan svart + limegrön), Geist Mono, pixeltelefonen som objekt
 
 # CROSSOVER — Buys when it hits the apps.
